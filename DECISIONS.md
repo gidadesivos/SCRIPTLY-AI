@@ -85,3 +85,32 @@ console, e o guard de rota protegida redirecionando corretamente para
 de workspace) foi revisado por código mas não visualmente testado com uma
 sessão real — fica como item para verificar assim que você conectar o
 Supabase.
+
+## 7. Gemini via REST, não via SDK (Fase 3)
+A Edge Function chama o endpoint REST `v1beta/models/{model}:generateContent`
+diretamente, em vez de usar um SDK. Motivo é o N10: sem conseguir rodar nada
+neste ambiente para conferir assinaturas, chutar a API de um SDK seria pior do
+que usar o contrato REST, que é estável e documentado. Trocar por SDK depois é
+um diff localizado em `_shared/gemini.ts`.
+
+## 8. Modelo padrão e como trocar
+Padrão: `gemini-2.5-flash`, definido **em um único lugar**
+(`_shared/ai-config.ts`) conforme §7.5. Dá para trocar sem mexer em código:
+`supabase secrets set GEMINI_MODEL=<outro>`.
+
+## 9. Sobre a chave enviada no chat
+A `GEMINI_API_KEY` foi enviada por mensagem e **não está no repositório** — nem
+no `.env` do frontend, nem em código, nem em migration (N2). Ela precisa ser
+configurada por você como secret da Edge Function. Como ficou registrada no
+histórico da conversa, o recomendável é rotacioná-la depois.
+
+Observação: o formato `AQ.Ab8...` não é o das chaves do Google AI Studio, que
+começam com `AIza`. Se a function responder erro de autenticação, gere uma
+chave em `aistudio.google.com/apikey`.
+
+## 10. A Edge Function não foi compilada aqui
+O Deno não está instalado neste ambiente e o instalador oficial também é
+bloqueado pela política de rede. As ~930 linhas da function foram revisadas à
+mão, não verificadas por compilador — é a maior fonte de risco da Fase 3.
+Espere possíveis correções no primeiro `supabase functions deploy`; me mande a
+saída do erro que eu corrijo.

@@ -79,7 +79,7 @@
 
 ### Não iniciado
 
-Tudo que está descrito nas Fases 3–8 do plano.
+Tudo que está descrito nas Fases 4–8 do plano.
 
 ---
 
@@ -204,3 +204,120 @@ Não testado ao vivo contra o banco: a rede desta sessão não alcança o Supaba
 Supabase estiver conectado (não posso simular isso sem credenciais).
 **Cosmético:** bundle único de 751 kB — aceitável agora, revisar
 code-splitting depois.
+
+---
+
+## Fase 3 — Core de IA (implementada)
+
+### Antes de testar: dois passos que só você pode fazer
+
+1. **Rodar a migration `0005_scripts.sql`** no SQL Editor.
+2. **Configurar o secret e publicar a function:**
+   ```bash
+   supabase secrets set GEMINI_API_KEY=<sua-chave>
+   supabase functions deploy ai-generate
+   ```
+   Ou pelo dashboard: **Edge Functions → Secrets** para a chave, e o deploy
+   pela CLI. Sem o deploy, o fluxo `/create` mostra "IA indisponível" —
+   comportamento correto, não bug.
+
+   Opcional: `supabase secrets set GEMINI_MODEL=<outro-modelo>` troca o modelo
+   sem mexer em código.
+
+### O que está pronto
+
+| Item | Evidência |
+|---|---|
+| Migration `0005` | `scripts`, `script_scenes`, `ai_generations`, enums de plataforma/status/funil, RLS nas três, índices do §6.3 |
+| Edge Function `ai-generate` | `supabase/functions/ai-generate/index.ts` + 8 módulos em `_shared/` |
+| Config central da IA | `_shared/ai-config.ts` — modelo, temperatura por operação, timeout 30s, retry, limites. **O nome do modelo aparece em um único lugar** (§7.5) |
+| Structured output | `responseSchema` plano no Gemini + Zod forte no retorno (§7.1) |
+| Pipeline com reparo | `_shared/pipeline.ts` — parse seguro → Zod → **1** tentativa de reparo reenviando o erro → erro amigável. Nunca persiste parcial (§7.2) |
+| Prompts versionados | `_shared/prompts.ts` — `CONTENT_SYSTEM_V1` + 5 prompts, versão gravada em `ai_generations` |
+| Defesa contra prompt injection | dados do usuário em `<brand_data>`/`<product_data>`/`<user_input>`, com instrução explícita de tratar como dado (§7.8) |
+| Contexto seletivo | `_shared/context.ts` — só marca + produto + 30 títulos recentes, cada bloco comentado com o porquê (§5) |
+| Anti-repetição | últimos 30 títulos da marca vão como "não repita" (§7.4) |
+| Rate limit | 20/min por usuário, 60/min por workspace, contando em `ai_generations`; 429 com mensagem clara (§7.6) |
+| Telemetria | toda chamada grava tipo, versão, modelo, status, latência e tokens. Nunca grava secret nem prompt completo (§7.7) |
+| Auth na function | JWT validado + membership do workspace conferida no servidor; `workspaceId` do body nunca é confiado |
+| Fluxo `/create` | ideia livre → briefing → ângulos → hooks → roteiro, em `features/create/` |
+| Completar com IA sem sobrescrever | `BriefStep` só sugere para campos vazios, com aceitar/descartar **por campo** e "aceitar todas" (§13 passo 6) |
+| Hook Score | subscores, ponto forte, problema e recomendação; cor e rótulo distintos de performance medida, com aviso de que é heurística (§7.3) |
+| Estimativa de duração | `lib/duration.ts` — determinística no cliente, 2,5 pal/s (2,2 premium, 3,0 UGC), avisa se estourar 15% (§7.2) |
+| Loading honesto | mensagens sequenciais reais; **sem barra de progresso percentual falsa** (§9) |
+| Persistência | `features/scripts/api.ts` — roteiro + cenas; se as cenas falharem, o roteiro órfão é removido |
+| Página do roteiro | `/scripts/:id` — leitura, cenas ordenadas, troca de status. Edição é da Fase 4 |
+| `options.ts` | plataformas, objetivos, tons, durações, ângulos, frameworks, status — nada hardcoded em componente (§16) |
+
+### Como testar (§13, passos 5–9)
+
+1. `/create` → digitar "quero vender adesivos resinados para oficinas" →
+   **Analisar ideia** → a IA devolve briefing editável.
+2. **Completar com IA** → sugere só para campos vazios → aceitar/descartar
+   individualmente → conferir que **não sobrescreveu** o que você digitou.
+3. **Gerar ângulos** → devem vir de 6 a 12, variados → escolher um.
+4. **Gerar hooks** → de 8 a 15 com score → clicar num hook abre subscores,
+   ponto forte, problema e recomendação.
+5. **Gerar roteiro** → cenas com locução, texto em tela, visual e ação →
+   conferir a linha "Locução estimada: X s (alvo: Y s)".
+6. **Salvar** → vai para `/scripts/:id` → recarregar e conferir que voltou.
+7. Gerar 21 vezes em menos de um minuto → deve aparecer o aviso de limite.
+
+### Dívidas conhecidas da Fase 3
+
+- **Rate limit tem janela de corrida.** A checagem conta `ai_generations`, mas o
+  registro só acontece ao fim da chamada (que leva segundos). Muitas requisições
+  disparadas em paralelo podem passar juntas. É proteção contra uso acidental,
+  não contra abuso deliberado; endurecer exige contador transacional.
+- **Edge Function não foi compilada nem executada aqui.** O Deno não está
+  disponível neste ambiente (o instalador também é bloqueado pela rede), então
+  o código foi revisado à mão, não verificado por compilador. **Este é o maior
+  risco da fase** — espere possíveis ajustes no primeiro deploy.
+- **A chave que você enviou (`AQ.Ab8...`) não tem o formato usual** das chaves
+  do Google AI Studio, que começam com `AIza`. Se o deploy retornar erro de
+  autenticação, gere uma em `aistudio.google.com/apikey`.
+- Regenerar ângulos/hooks descarta a lista anterior — não há histórico de
+  gerações na tela. Vira relevante no Hook Lab (Fase 5).
+- Sem `useFieldArray` no briefing: os campos são de texto simples. A edição
+  cena a cena é a Fase 4.
+
+## Auto-auditoria da Fase 3 (§14)
+
+Problemas reais encontrados e **corrigidos antes de fechar**:
+
+1. **Crítico — FK que estouraria no delete.** `scripts` referenciava
+   `products(id, workspace_id)` com `on delete set null`. Numa FK composta, o
+   "set null" tenta anular **todas** as colunas, incluindo `workspace_id`, que é
+   `NOT NULL` — o delete falharia com erro de constraint. Trocado por
+   `restrict`, coerente com produtos serem arquivados e não apagados.
+2. **Importante — score virando zero.** O Zod usava `.int()` antes do `.catch(0)`:
+   um score `85.5` vindo do modelo falharia a validação de inteiro, cairia no
+   catch e viraria **0** — silenciosamente transformando um hook bom em um
+   hook péssimo na tela. Agora arredonda antes de clampar.
+3. **Menor — `as never` para driblar tipos.** `saveScript` usava três casts para
+   satisfazer os enums. Substituídos por tipos corretos (`Platform`,
+   `FunnelStage`), o que imediatamente expôs dois pontos no `/create` onde
+   valores de `<select>` entravam como `string` solta.
+
+Demais eixos:
+
+- **Segurança:** nenhum secret no bundle (`grep` no build confirma). A chave do
+  Gemini só existe como secret da function. Auth + membership validados no
+  servidor antes de qualquer chamada paga. Prompt injection tratada por
+  delimitadores + instrução de sistema.
+- **Banco:** `ai_generations` sem policy de INSERT para `authenticated` — só a
+  function (service role) escreve; usuário só lê o do próprio workspace.
+- **Custo:** rate limit e `maxOutputTokens` por operação evitam que um loop de
+  UI vire conta alta.
+- **UX:** loading com mensagens reais; erro da IA vira mensagem específica por
+  código (`ai_unavailable`, `invalid_ai_output`, `rate_limited`), nunca stack
+  trace.
+- **Mobile:** alvos de 44px nos botões de ação e cards de hook/ângulo com toque
+  na área inteira.
+
+**Verificado no navegador** (harness temporário já removido): indicador de
+etapas, seleção de ângulo e hook, subscores ao selecionar, disclaimer de
+heurística, e a linha de duração estimada batendo com o cálculo manual
+(36 palavras ÷ 2,5 = 14,4 s). O limiar de estouro e o guard de divisão por zero
+foram conferidos à parte. **Não testado contra o Gemini nem contra o banco** —
+a rede desta sessão não alcança nenhum dos dois.

@@ -77,6 +77,99 @@ type ProductColumns = {
   updated_at: string
 }
 
+export type Platform =
+  | 'instagram_reels'
+  | 'tiktok'
+  | 'youtube_shorts'
+  | 'meta_ads'
+  | 'instagram_ads'
+  | 'facebook_ads'
+  | 'youtube_ads'
+  | 'generic'
+
+export type ScriptStatus =
+  | 'ideia'
+  | 'roteiro'
+  | 'aprovado'
+  | 'gravacao'
+  | 'edicao'
+  | 'pronto'
+  | 'publicado'
+  | 'arquivado'
+
+export type FunnelStage = 'topo' | 'meio' | 'fundo' | 'remarketing'
+
+type ScriptColumns = {
+  id: string
+  workspace_id: string
+  brand_id: string
+  product_id: string | null
+  created_by: string
+  title: string
+  description: string | null
+  platform: Platform
+  objective: string | null
+  funnel_stage: FunnelStage | null
+  duration_seconds: number
+  language: string
+  tone: string | null
+  target_audience: string | null
+  pain: string | null
+  desire: string | null
+  promise: string | null
+  angle_type: string | null
+  angle_description: string | null
+  hook_text: string | null
+  hook_category: string | null
+  hook_score: number | null
+  framework: string | null
+  cta: string | null
+  strategy_summary: string | null
+  status: ScriptStatus
+  scheduled_at: string | null
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+type SceneColumns = {
+  id: string
+  workspace_id: string
+  script_id: string
+  order_index: number
+  start_second: number | null
+  end_second: number | null
+  purpose: string | null
+  shot: string | null
+  visual: string | null
+  action: string | null
+  voiceover: string | null
+  on_screen_text: string | null
+  broll: string | null
+  editing_direction: string | null
+  transition: string | null
+  sound_suggestion: string | null
+  created_at: string
+  updated_at: string
+}
+
+type AiGenerationColumns = {
+  id: string
+  workspace_id: string
+  user_id: string
+  generation_type: string
+  prompt_version: string
+  related_entity_type: string | null
+  related_entity_id: string | null
+  model: string
+  status: 'success' | 'invalid_output' | 'error' | 'rate_limited'
+  latency_ms: number | null
+  input_tokens: number | null
+  output_tokens: number | null
+  error_message: string | null
+  created_at: string
+}
+
 type Insertable<T, Required extends keyof T> = Partial<Omit<T, Required>> & Pick<T, Required>
 
 export interface Database {
@@ -195,6 +288,41 @@ export interface Database {
             referencedColumns: ['id']
           },
         ]
+      }
+      scripts: {
+        Row: ScriptColumns
+        Insert: Insertable<ScriptColumns, 'workspace_id' | 'brand_id' | 'title' | 'created_by'>
+        Update: Partial<ScriptColumns>
+        Relationships: [
+          {
+            foreignKeyName: 'scripts_brand_id_fkey'
+            columns: ['brand_id']
+            referencedRelation: 'brands'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      script_scenes: {
+        Row: SceneColumns
+        Insert: Insertable<SceneColumns, 'workspace_id' | 'script_id' | 'order_index'>
+        Update: Partial<SceneColumns>
+        Relationships: [
+          {
+            foreignKeyName: 'script_scenes_script_id_fkey'
+            columns: ['script_id']
+            referencedRelation: 'scripts'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ai_generations: {
+        Row: AiGenerationColumns
+        Insert: Insertable<
+          AiGenerationColumns,
+          'workspace_id' | 'user_id' | 'generation_type' | 'prompt_version' | 'model' | 'status'
+        >
+        Update: Partial<AiGenerationColumns>
+        Relationships: []
       }
     }
     Views: Record<string, never>
