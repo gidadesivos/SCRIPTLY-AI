@@ -11,25 +11,52 @@ pronto para conectar: `src/lib/supabase.ts` lê `VITE_SUPABASE_URL` e
 quebra** — mostra aviso amigável "backend não configurado" na tela de
 login e desabilita o botão de entrar (evita N4: UI falsa).
 
+**Status:** projeto criado (`hsncbjxsbbtcpdmvbptc`) e `.env` preenchido
+localmente com URL + publishable key. Falta apenas rodar a migration.
+
 **O que você precisa fazer:**
-1. Criar um projeto em https://supabase.com.
-2. Em Authentication → Providers, habilitar **Google** (precisa de Client
-   ID/Secret criados no Google Cloud Console, com redirect URI
-   `https://<seu-projeto>.supabase.co/auth/v1/callback`).
-3. Rodar a migration: `supabase link --project-ref <ref>` e
-   `supabase db push` (ou colar `supabase/migrations/0001_init.sql` no SQL
-   Editor).
-4. Copiar `.env.example` para `.env` e preencher `VITE_SUPABASE_URL` e
-   `VITE_SUPABASE_ANON_KEY` (Project Settings → API).
-5. Rodar `supabase gen types typescript --project-id <id> > src/types/database.ts`
+1. Abrir o **SQL Editor** do projeto no dashboard do Supabase.
+2. Colar o conteúdo de `supabase/migrations/0001_init.sql` e executar.
+   (Não consigo rodar daqui — ver item 2b abaixo.)
+3. Opcional, para testar mais rápido: desligar a confirmação de e-mail em
+   Authentication → Sign In / Up → Email → "Confirm email".
+4. Depois, rodar `supabase gen types typescript --project-id hsncbjxsbbtcpdmvbptc > src/types/database.ts`
    para substituir o tipo escrito à mão por um gerado a partir do schema real.
 
-## 2. Google OAuth é configuração externa, não código
-Idem acima — não é algo que eu possa configurar por código (N10: não
-inventar API/infra que não existe). O fluxo (`signInWithOAuth({ provider:
-'google' })` → `/auth/callback` → `supabase.auth.getSession()`) está
-implementado e pronto para funcionar assim que o provider estiver ativo no
-Supabase.
+**Sobre a `SUPABASE_SECRET_KEY`:** equivale ao antigo `service_role` —
+ignora RLS por completo. Não está no repositório nem no `.env` do
+frontend, e não é necessária ainda. Quando a Fase 3 trouxer Edge
+Functions, o Supabase injeta essa chave no runtime delas automaticamente;
+não precisa ser configurada à mão (N2).
+
+## 2. Login por e-mail + senha, não Google (decisão revisada)
+A constituição (§11) previa "Auth Google" no MVP. Trocamos para **e-mail +
+senha** a pedido do usuário, por um motivo prático: o Google OAuth exige
+criar credenciais no Google Cloud Console e colar Client ID/Secret no
+Supabase — configuração externa em dois consoles, que travava o app.
+E-mail + senha é nativo do Supabase e funciona sem nenhum passo externo.
+
+O botão do Google foi **removido** da tela (não deixado desabilitado),
+seguindo N4: nada de UI que não faz nada. Adicionar Google depois é
+aditivo — o `AuthProvider` já isola o método de login do resto do app, e
+a rota `/auth/callback` continua existindo (agora serve ao link de
+confirmação de e-mail).
+
+**Confirmação de e-mail:** por padrão o Supabase exige que o usuário
+confirme o e-mail antes de liberar a sessão. O app trata isso: se o
+cadastro não retorna sessão, mostra a tela "Confirme seu e-mail". Para
+testar mais rápido, dá pra desligar em **Authentication → Sign In / Up →
+Email → "Confirm email"** no dashboard.
+
+## 2b. Este ambiente não alcança o seu Supabase
+A rede desta sessão bloqueia `hsncbjxsbbtcpdmvbptc.supabase.co` por
+política de egress (o proxy responde `403 Host not in allowlist`). Isso
+vale para CLI, REST e connection string — nenhuma credencial resolve,
+porque o tráfego não sai daqui. Consequência prática: **a migration
+precisa ser rodada por você** (SQL Editor do dashboard, colando
+`supabase/migrations/0001_init.sql`), e os testes de ponta a ponta contra
+o banco real também são seus. O que dá pra validar aqui — build,
+typecheck, renderização, validação de formulário — foi validado.
 
 ## 3. Onboarding da Fase 1 é mínimo (só nome do workspace)
 A constituição reserva o onboarding completo (6 passos, marca + produto)

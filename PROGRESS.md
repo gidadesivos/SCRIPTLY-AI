@@ -13,7 +13,8 @@
 | Cliente Supabase (só ANON KEY) | `src/lib/supabase.ts` — `isSupabaseConfigured` evita quebra silenciosa quando env vars faltam |
 | TanStack Query | `src/lib/queryClient.ts`, usado em `useWorkspaces` |
 | React Router v6 com rotas protegidas | `src/routes.tsx`, `src/features/auth/components/ProtectedRoute.tsx` |
-| Auth Google (OAuth) + callback | `src/features/auth/hooks/useAuth.tsx`, `LoginPage.tsx`, `AuthCallback.tsx` |
+| Auth e-mail + senha (login, cadastro, confirmação) | `src/features/auth/hooks/useAuth.tsx`, `LoginPage.tsx`, `AuthCallback.tsx` |
+| Taxonomia de erro de auth em pt-BR | `src/lib/auth-errors.ts` — mapeia códigos do `AuthError` para mensagens humanas |
 | Migration `0001_init.sql`: profiles, workspaces, workspace_members | `supabase/migrations/0001_init.sql` |
 | Funções `SECURITY DEFINER` (evitam recursão de RLS) | `is_workspace_member`, `has_workspace_role` na migration |
 | RLS ativa com policies SELECT/INSERT/UPDATE/DELETE | todas as 3 tabelas da Fase 1 |
@@ -33,35 +34,39 @@
 ### Como testar
 
 1. `npm install`
-2. Copiar `.env.example` → `.env`, preencher com um projeto Supabase real
-   (ver `DECISIONS.md` item 1 para o passo a passo completo, incluindo
-   habilitar o provider Google e rodar a migration).
-3. `npm run dev` e abrir a URL local.
-4. **Sem `.env` preenchido:** a tela de login aparece com aviso amigável
-   "backend não configurado" e o botão de login fica desabilitado — não
-   quebra a tela (testado com Playwright, sem erros de console).
-5. **Com `.env` preenchido e Google habilitado:** clicar "Continuar com
-   Google" → completa OAuth → cai em `/auth/callback` → redireciona para
-   `/dashboard`.
-6. Primeiro acesso sem workspace: tela de onboarding pedindo nome →
+2. Copiar `.env.example` → `.env` e preencher com URL + publishable key do
+   projeto (ver `DECISIONS.md` item 1).
+3. **Rodar a migration** `supabase/migrations/0001_init.sql` no SQL Editor
+   do dashboard. Sem isso, o login funciona mas o app não tem onde gravar.
+4. `npm run dev` e abrir a URL local.
+5. **Cadastro:** clicar "Criar conta" → nome, e-mail, senha (mín. 8) →
+   se a confirmação de e-mail estiver ligada, aparece a tela "Confirme seu
+   e-mail"; clicar no link recebido leva a `/auth/callback` e entra.
+6. **Login:** e-mail + senha → cai em `/dashboard`. Senha errada mostra
+   "E-mail ou senha incorretos.", não erro técnico.
+7. Primeiro acesso sem workspace: tela de onboarding pedindo nome →
    criar → cai direto no dashboard com o workspace já ativo.
 7. Criar um segundo workspace pelo seletor no rodapé da sidebar → trocar
    entre eles → o nome ativo persiste após reload (localStorage).
 8. Fechar o navegador e abrir de novo → sessão continua logada
    (`persistSession: true` no cliente Supabase).
-9. **Teste de isolamento (2 usuários):** logar com uma segunda conta
-   Google → ela não vê os workspaces do primeiro usuário (RLS filtra por
+9. **Teste de isolamento (2 usuários):** cadastrar um segundo e-mail (aba
+   anônima) → ele não vê os workspaces do primeiro usuário (RLS filtra por
    `workspace_members`).
 10. Redimensionar para mobile (<768px) → sidebar vira botão de menu no
     topo → abre drawer lateral com os mesmos itens.
 
 ### Parcial / dívidas conhecidas
 
-- **UI autenticada não testada com sessão real de ponta a ponta.** Não há
-  projeto Supabase/Google OAuth configurado neste ambiente (ver
-  `DECISIONS.md`). Validado por code review + typecheck + build, mas o
-  fluxo sidebar → dashboard → settings com uma sessão real ainda precisa
-  ser conferido por você após conectar o Supabase.
+- **Migration ainda não rodada** no projeto `hsncbjxsbbtcpdmvbptc`. É o
+  único passo que falta para o app funcionar de verdade. Bloqueado do meu
+  lado: a rede desta sessão não alcança o host do Supabase (ver
+  `DECISIONS.md` item 2b).
+- **UI autenticada não testada com sessão real de ponta a ponta**, pelo
+  mesmo motivo acima. Validado por typecheck, build e Playwright:
+  renderização de login/cadastro, validação de formulário e guard de rota.
+  O fluxo sidebar → dashboard → settings com sessão real ainda precisa ser
+  conferido por você.
 - `src/types/database.ts` foi escrito à mão a partir da migration. Deve
   ser regenerado com `supabase gen types typescript` assim que o projeto
   existir, para garantir que reflita o schema real e não diverja.
@@ -78,10 +83,15 @@ Tudo que está descrito nas Fases 2–8 do plano.
 
 ## Auto-auditoria (§14)
 
-- **Funcionalidade:** login, callback, workspace switch, tema e rotas
-  protegidas funcionam de ponta a ponta no código; o único ponto não
-  verificado ao vivo é a autenticação real (depende de projeto Supabase
-  externo — ver dívidas acima).
+- **Funcionalidade:** login/cadastro, callback, workspace switch, tema e
+  rotas protegidas funcionam no código; o não verificado ao vivo é tudo
+  que depende do banco (ver dívidas acima).
+- **Bug real encontrado e corrigido na auditoria:** o `PasswordInput` não
+  encaminhava o `ref` do react-hook-form, então o campo de senha nunca
+  registrava valor e o formulário vazava a mensagem técnica do Zod
+  ("expected string, received undefined") — violação direta de §9.
+  Corrigido com `forwardRef` (`LoginPage.tsx`) e verificado no browser:
+  agora mostra "Informe sua senha.".
 - **Segurança:** as 3 tabelas têm RLS ligada com policy para os 4
   comandos. Nenhum secret no bundle — `grep -r "SERVICE_ROLE\|GEMINI" src/`
   não retorna nada. Funções de policy usam `SECURITY DEFINER` para evitar

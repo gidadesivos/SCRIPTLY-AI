@@ -2,11 +2,17 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
+interface SignUpResult {
+  /** false quando o projeto exige confirmação de e-mail antes de liberar a sessão. */
+  hasSession: boolean
+}
+
 interface AuthContextValue {
   session: Session | null
   user: User | null
   isLoading: boolean
-  signInWithGoogle: () => Promise<void>
+  signIn: (email: string, password: string) => Promise<void>
+  signUp: (fullName: string, email: string, password: string) => Promise<SignUpResult>
   signOut: () => Promise<void>
 }
 
@@ -34,11 +40,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.subscription.unsubscribe()
   }, [])
 
-  async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+  async function signIn(email: string, password: string) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+  }
+
+  async function signUp(fullName: string, email: string, password: string): Promise<SignUpResult> {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     })
+    if (error) throw error
+    return { hasSession: Boolean(data.session) }
   }
 
   async function signOut() {
@@ -47,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, isLoading, signInWithGoogle, signOut }}
+      value={{ session, user: session?.user ?? null, isLoading, signIn, signUp, signOut }}
     >
       {children}
     </AuthContext.Provider>
