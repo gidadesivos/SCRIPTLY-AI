@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from '@/config/navigation'
 import { APP_NAME } from '@/config/brand'
 import { WorkspaceSwitcher } from '@/features/workspaces/components/WorkspaceSwitcher'
+import { BrandSwitcher } from '@/features/brands/components/BrandSwitcher'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/features/auth/hooks/useAuth'
@@ -46,6 +47,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="flex flex-col gap-3 border-t border-border pt-4">
         <WorkspaceSwitcher />
+        <BrandSwitcher onNavigate={onNavigate} />
         <div className="flex items-center gap-2 px-1">
           <Avatar>
             <AvatarImage src={avatarUrl} alt={displayName} />

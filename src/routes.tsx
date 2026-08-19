@@ -5,6 +5,10 @@ import { ProtectedRoute } from '@/features/auth/components/ProtectedRoute'
 import { AppShell } from '@/components/AppShell'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
+import { BrandsListPage } from '@/features/brands/BrandsListPage'
+import { BrandEditorPage } from '@/features/brands/BrandEditorPage'
+import { ProductsListPage } from '@/features/products/ProductsListPage'
+import { ProductEditorPage } from '@/features/products/ProductEditorPage'
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -17,6 +21,12 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/brands', element: <BrandsListPage /> },
+          { path: '/brands/new', element: <BrandEditorPage /> },
+          { path: '/brands/:brandId', element: <BrandEditorPage /> },
+          { path: '/products', element: <ProductsListPage /> },
+          { path: '/products/new', element: <ProductEditorPage /> },
+          { path: '/products/:productId', element: <ProductEditorPage /> },
           { path: '/settings', element: <SettingsPage /> },
         ],
       },

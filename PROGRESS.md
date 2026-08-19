@@ -79,7 +79,93 @@
 
 ### Não iniciado
 
-Tudo que está descrito nas Fases 2–8 do plano.
+Tudo que está descrito nas Fases 3–8 do plano.
+
+---
+
+## Fase 2 — Conhecimento (implementada)
+
+### O que está pronto
+
+| Item | Evidência |
+|---|---|
+| Migration `0002_brands.sql` — todos os campos do §16 | enum `resource_status`, RLS 4 policies, índices `(workspace_id, status)`, `(workspace_id, created_at desc)` e trgm em `name` |
+| Migration `0003_products.sql` | FK **composta** `(brand_id, workspace_id)` → produto não pode apontar para marca de outro workspace |
+| Migration `0004_storage.sql` | buckets privados `avatars` e `brand-assets`, policies por pasta, limites de tamanho e MIME |
+| Brand Brain com 6 abas | `features/brands/components/BrandForm.tsx` — Identidade, Posicionamento, Público, Voz, Provas, Instruções de IA |
+| Upload de logo com signed URL | `features/brands/components/BrandLogoUpload.tsx`, `lib/storage.ts` |
+| Produtos: CRUD, busca, filtros, duplicar, arquivar | `features/products/` |
+| FAQ e links como repetidores | `ProductForm.tsx` com `useFieldArray`, validação por item |
+| Seletor de marca ativa | `features/brands/components/BrandSwitcher.tsx`, persistido por workspace |
+| `TagInput` para os 13 campos `text[]` | `components/TagInput.tsx` — Enter/vírgula adiciona, Backspace remove, commit no blur |
+| Busca com debounce | `lib/useDebouncedValue.ts` (300ms) — não dispara query por tecla |
+| Estados vazio/carregando/erro em todas as telas | skeletons, `EmptyState` com CTA, botão "Tentar novamente" |
+| Empty state que ensina o caminho | Produtos sem marca cadastrada leva ao Brand Brain em vez de mostrar form quebrado |
+
+### Como testar
+
+1. Rodar as migrations `0002`, `0003` e `0004` no SQL Editor, **nesta ordem**.
+2. **Marcas:** criar marca → preencher abas → salvar → recarregar a página e
+   conferir que os dados voltaram. Enviar um logo. Arquivar e reativar.
+3. **Produtos:** criar produto escolhendo a marca → preencher benefícios,
+   objeções, FAQ e links → salvar → recarregar. Duplicar (gera "(cópia)" com
+   novo id, sem tocar no original). Arquivar.
+4. **Filtros:** buscar por nome, filtrar por marca e por status; "Limpar
+   filtros" volta ao estado inicial.
+5. **Marca ativa:** trocar no seletor do rodapé da sidebar → recarregar →
+   continua na marca escolhida. Trocar de workspace → marca ativa é a daquele
+   workspace, não herda a anterior.
+6. **Isolamento:** segunda conta em outro workspace não vê marcas nem produtos.
+
+### Dívidas conhecidas da Fase 2
+
+- **Sem paginação** nas listas de marcas e produtos. Aceitável no volume
+  atual; vira problema na casa das centenas. A paginação entra na Fase 5,
+  junto com a biblioteca de roteiros.
+- **Signed URL do logo expira em 1h.** Se a aba ficar aberta além disso, a
+  imagem quebra até um refresh. Trocar por renovação sob demanda quando
+  incomodar.
+- **`brand_assets` (tabela do §6) não foi criada.** O logo vive em
+  `brands.logo_url`; criar a tabela agora seria schema sem tela (§N4).
+- **Sem autosave** nos formulários — é da Fase 4, junto com o editor.
+
+## Auto-auditoria da Fase 2 (§14)
+
+Três problemas reais encontrados e **corrigidos antes de fechar a fase**:
+
+1. **Crítico — integridade entre workspaces.** `products.brand_id` referenciava
+   `brands(id)` sem amarrar o workspace. Um cliente malicioso podia forjar um
+   `brand_id` de outro workspace no insert: a RLS aprovaria (ela só checa
+   `workspace_id`) e o produto ficaria pendurado numa marca alheia. Corrigido
+   com FK composta `(brand_id, workspace_id) → brands(id, workspace_id)`, mais
+   o `unique (id, workspace_id)` em `brands` que serve de alvo. Agora o banco
+   recusa, independente do que o cliente enviar.
+2. **Importante — acessibilidade.** `TagField` renderizava `<label htmlFor={id}>`
+   mas o `TagInput` gerava o próprio id internamente: clicar no rótulo não
+   focava nada, e o `aria-describedby` do erro não chegava ao campo. O id agora
+   desce do `FormField` para o input.
+3. **Importante — UX.** O editor de produto carregava só marcas ativas. Editar
+   um produto de marca arquivada mostrava o select vazio, dando a impressão de
+   que o dado tinha sumido. Passou a carregar todas.
+
+Demais eixos:
+
+- **Segurança:** `brands` e `products` com RLS e as 4 policies; escrita exige
+  papel `editor` ou acima. Storage isolado por pasta reusando
+  `is_workspace_member`. Nenhum secret no bundle.
+- **Banco:** listas simples em `text[]`; `jsonb` só em `faq` e `links`, onde a
+  estrutura é de fato variável. FKs com `on delete` explícito.
+- **Performance:** lista de produtos usa join (`brands(id, name)`) em vez de uma
+  query por card — sem N+1. Busca com debounce e índice trgm no `name`.
+- **Mobile:** alvos de toque em 44px nos botões de ação; abas com scroll
+  horizontal próprio, sem estourar a página.
+- **Consistência:** `TextField`/`TextareaField`/`TagField` compartilhados entre
+  os dois formulários; um único `StatusBadge` e um único `EmptyState`.
+
+**Verificado no navegador** (Playwright, com harness temporário já removido):
+as 10 abas dos dois formulários, adição/remoção de chips, repetidores de FAQ e
+links, validação por item e mensagens em pt-BR — sem erros de console.
+Não testado ao vivo contra o banco: a rede desta sessão não alcança o Supabase.
 
 ## Auto-auditoria (§14)
 

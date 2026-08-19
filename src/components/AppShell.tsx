@@ -5,6 +5,7 @@ import { AppSidebar } from '@/components/AppSidebar'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ActiveWorkspaceProvider, useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
+import { ActiveBrandProvider } from '@/features/brands/hooks/useActiveBrand'
 import { OnboardingPage } from '@/features/workspaces/components/OnboardingPage'
 import { APP_NAME } from '@/config/brand'
 
@@ -62,7 +63,9 @@ function AppShellInner() {
 export function AppShell() {
   return (
     <ActiveWorkspaceProvider>
-      <AppShellInner />
+      <ActiveBrandProvider>
+        <AppShellInner />
+      </ActiveBrandProvider>
     </ActiveWorkspaceProvider>
   )
 }

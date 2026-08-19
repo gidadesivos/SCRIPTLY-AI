@@ -1,16 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { slugify } from '@/lib/slug'
 import type { Workspace } from './types'
-
-function slugify(name: string) {
-  const base = name
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-  const suffix = Math.random().toString(36).slice(2, 8)
-  return `${base || 'workspace'}-${suffix}`
-}
 
 export async function listWorkspaces(): Promise<Workspace[]> {
   const { data, error } = await supabase
