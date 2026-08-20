@@ -219,3 +219,77 @@ export const scriptZodSchema = z.object({
 })
 
 export type ScriptOutput = z.infer<typeof scriptZodSchema>
+
+// ------------------------------------------------------- rewriteSection
+export const rewriteGeminiSchema: GeminiSchema = {
+  type: 'OBJECT',
+  properties: {
+    content: str('O novo conteúdo APENAS deste campo'),
+    note: str('Observação curta, se a instrução não se aplicar'),
+  },
+  required: ['content'],
+}
+
+export const rewriteZodSchema = z.object({
+  content: z.string().min(1, 'A IA devolveu um trecho vazio.'),
+  note: z.string().default(''),
+})
+
+export type RewriteOutput = z.infer<typeof rewriteZodSchema>
+
+// ---------------------------------------------------- generateVariations
+export const variationsGeminiSchema: GeminiSchema = {
+  type: 'OBJECT',
+  properties: {
+    variations: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          label: str('Rótulo curto, ex: B, C'),
+          title: str(),
+          hook: str(),
+          cta: str(),
+          hypothesis: str('O que esta variação testa em relação ao original'),
+          scenes: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                voiceover: str(),
+                on_screen_text: str(),
+              },
+              required: ['voiceover'],
+            },
+          },
+        },
+        required: ['title', 'hook', 'scenes'],
+      },
+    },
+  },
+  required: ['variations'],
+}
+
+export const variationsZodSchema = z.object({
+  variations: z
+    .array(
+      z.object({
+        label: z.string().default(''),
+        title: z.string().min(1),
+        hook: z.string().default(''),
+        cta: z.string().default(''),
+        hypothesis: z.string().default(''),
+        scenes: z
+          .array(
+            z.object({
+              voiceover: z.string().default(''),
+              on_screen_text: z.string().default(''),
+            }),
+          )
+          .min(1),
+      }),
+    )
+    .min(1, 'A IA não devolveu nenhuma variação.'),
+})
+
+export type VariationsOutput = z.infer<typeof variationsZodSchema>

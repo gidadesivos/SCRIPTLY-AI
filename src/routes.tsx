@@ -10,7 +10,7 @@ import { BrandEditorPage } from '@/features/brands/BrandEditorPage'
 import { ProductsListPage } from '@/features/products/ProductsListPage'
 import { ProductEditorPage } from '@/features/products/ProductEditorPage'
 import { CreatePage } from '@/features/create/CreatePage'
-import { ScriptDetailPage } from '@/features/scripts/ScriptDetailPage'
+import { ScriptEditorPage } from '@/features/scripts/ScriptEditorPage'
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -24,7 +24,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/create', element: <CreatePage /> },
-          { path: '/scripts/:scriptId', element: <ScriptDetailPage /> },
+          { path: '/scripts/:scriptId', element: <ScriptEditorPage /> },
           { path: '/brands', element: <BrandsListPage /> },
           { path: '/brands/new', element: <BrandEditorPage /> },
           { path: '/brands/:brandId', element: <BrandEditorPage /> },

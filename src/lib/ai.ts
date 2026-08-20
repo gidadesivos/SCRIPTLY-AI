@@ -136,3 +136,46 @@ export function generateScript(
 ) {
   return invoke<GeneratedScript>({ operation: 'generateScript', ...ref, brief, angle, hook })
 }
+
+export interface RewriteResult {
+  content: string
+  note: string
+}
+
+export interface VariationDraftFromAi {
+  label: string
+  title: string
+  hook: string
+  cta: string
+  hypothesis: string
+  scenes: Array<{ voiceover: string; on_screen_text: string }>
+}
+
+/** Alteração cirúrgica: devolve só o fragmento do alvo (§7.3). */
+export function rewriteSection(
+  ref: ContextRef,
+  instruction: string,
+  target: { label: string; current: string },
+  surrounding: string,
+) {
+  return invoke<RewriteResult>({
+    operation: 'rewriteSection',
+    ...ref,
+    instruction,
+    target,
+    surrounding,
+  })
+}
+
+export function generateVariations(
+  ref: ContextRef,
+  script: { title: string; hook: string; cta: string; scenes: string[] },
+  count: number,
+) {
+  return invoke<{ variations: VariationDraftFromAi[] }>({
+    operation: 'generateVariations',
+    ...ref,
+    script,
+    count,
+  })
+}

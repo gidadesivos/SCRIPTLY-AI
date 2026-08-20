@@ -321,3 +321,103 @@ heurística, e a linha de duração estimada batendo com o cálculo manual
 (36 palavras ÷ 2,5 = 14,4 s). O limiar de estouro e o guard de divisão por zero
 foram conferidos à parte. **Não testado contra o Gemini nem contra o banco** —
 a rede desta sessão não alcança nenhum dos dois.
+
+---
+
+## Fase 4 — Editor (implementada)
+
+### Antes de testar
+1. Rodar a migration **`0006_versions.sql`** no SQL Editor.
+2. Republicar a function (ela ganhou duas operações):
+   `supabase functions deploy ai-generate`
+
+### O que está pronto
+
+| Item | Evidência |
+|---|---|
+| Migration `0006` | `script_versions`, `script_variations`, RLS, e três RPCs transacionais |
+| Editor de roteiro | `features/scripts/ScriptEditorPage.tsx` — colunas no desktop, painel em sheet no mobile |
+| Cenas com drag & drop | `@dnd-kit` com sensor de teclado junto do de ponteiro; reordenação **verificada no navegador** |
+| Editar, duplicar, excluir, adicionar cena | `SceneCard.tsx` + `api.ts`; excluir e reordenar são optimistic com rollback |
+| Regenerar só uma cena | usa `rewriteSection` com alvo na locução daquela cena — não toca no resto |
+| Autosave | `hooks/useAutosave.ts` — debounce 1200ms + save no blur + flush ao desmontar; **não cria versão** (§9) |
+| Estados de salvamento | `SaveIndicator.tsx` — `Salvando… / Salvo às 14:32 / Erro ao salvar (Tentar novamente)` |
+| Copilot cirúrgico | `CopilotPanel.tsx` — ações rápidas + instrução livre, sempre com alvo explícito |
+| Preview antes/depois | diff visual com aceitar/descartar; nada é aplicado sem aprovação |
+| Versões | criar, listar, restaurar; restaurar salva o estado atual antes, então é reversível |
+| Variações A/B | `VariationsPanel.tsx` — cada variação vira roteiro próprio, original intocado |
+| Duplicar roteiro | `duplicateScript` — novo id, cenas copiadas, sem vínculo |
+| Estimativa de duração no editor | recalcula ao editar a locução, com aviso de estouro |
+
+### Como testar (§13, passos 10–14)
+
+1. Abrir um roteiro salvo → editar o texto de uma cena → esperar ~1,5s →
+   ver "Salvo às HH:MM" → **recarregar** e conferir que persistiu.
+2. Arrastar uma cena pela alça (⠿) → soltar em outra posição → recarregar e
+   conferir a ordem. Funciona por teclado também (Tab até a alça, espaço,
+   setas).
+3. Duplicar cena, excluir cena, adicionar cena.
+4. **Regenerar** uma cena → só a locução daquela cena muda.
+5. **Copilot → "Melhorar o CTA"** → aparece prévia antes/depois → aplicar →
+   conferir que **só o CTA** mudou, e nada mais.
+6. **Versões → Criar versão** → editar bastante → **Restaurar** → conferir que
+   o conteúdo voltou, e que existe uma nova versão com o estado pré-restauração.
+7. **Duplicar** o roteiro → abre cópia com novo id → editar a cópia → conferir
+   que o original não mudou.
+8. **Variações → Criar variação** → gera a B → abrir → conferir que o original
+   segue intacto.
+
+### Dívidas conhecidas da Fase 4
+
+- **Sem undo local (Cmd+Z) no editor.** Estava no escopo da fase e não entrou:
+  o histórico de versões cobre o caso grave, mas desfazer uma digitação ainda
+  depende do undo nativo de cada campo. Fica para o polimento.
+- **Sem edição inline por seleção de texto.** O Copilot age por alvo escolhido
+  no painel, não por trecho selecionado no meio do texto.
+- **Duas abas no mesmo roteiro sobrescrevem uma à outra.** O autosave é
+  last-write-wins, sem detecção de conflito. Realtime colaborativo está
+  explicitamente fora do MVP.
+- `duplicateScene` faz insert + reorder em dois requests: se o reorder falhar,
+  a cópia fica no fim da lista em vez de logo abaixo da original. Não perde
+  dado, só a posição.
+
+## Auto-auditoria da Fase 4 (§14)
+
+**Crítico, encontrado e corrigido antes de fechar — a reordenação estava
+quebrada por construção.** `reorderScenes` disparava um `UPDATE` por cena em
+paralelo, cada um em sua própria transação. Reordenar `[0,1,2]` para `[1,2,0]`
+significa gravar índice 0 numa cena enquanto outra ainda ocupa o 0 — violação
+da unique `(script_id, order_index)`. A constraint era `DEFERRABLE`, mas isso
+só adia a checagem **dentro da mesma transação**, e não havia transação
+comum. Na prática, **todo drag & drop falharia** contra o banco real (o teste
+de navegador não pegou isso: valida só o estado local).
+
+Corrigido com a RPC `reorder_script_scenes`, que faz o update de todas as cenas
+numa transação única com `set constraints all deferred`. `duplicateScene`
+passou a inserir no fim (índice livre) e reordenar pela mesma RPC.
+
+**Também crítico:** `restoreVersion` apagava todas as cenas e reinseria em
+requests separados. Um erro no meio deixaria o roteiro **sem cena nenhuma**.
+Virou a RPC `restore_script_version`, atômica.
+
+Demais eixos:
+
+- **Segurança:** as três RPCs são `SECURITY DEFINER` e checam papel via
+  `has_workspace_role` antes de escrever — não basta ser membro, precisa ser
+  editor ou acima. `script_versions` não tem policy de UPDATE: versão é
+  histórico, não se edita.
+- **Concorrência:** `create_script_version` trava a linha do roteiro
+  (`for update`) antes de calcular o próximo número, então dois usuários
+  salvando junto não geram versões com o mesmo número.
+- **UX:** reordenar e excluir são optimistic com rollback e toast no erro;
+  o autosave devolve o payload à fila quando falha, então a edição não se perde.
+- **Acessibilidade:** a alça de arrastar é um `<button>` com `aria-label` e
+  sensor de teclado — reordenar não depende de mouse.
+- **Mobile:** painel do Copilot vira sheet lateral abaixo de `lg`; alças e
+  botões de ação com 44px.
+
+**Verificado no navegador:** reordenação por drag (`s1,s2,s3` → `s2,s3,s1`),
+os três estados do indicador de salvamento com o texto exato do §9, e a
+contagem de palavras por cena. **Não testado contra o banco nem contra o
+Gemini** — a rede desta sessão não alcança nenhum dos dois, e é justamente por
+isso que o bug de reordenação só apareceu na revisão de código, não no teste.

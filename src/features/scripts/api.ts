@@ -130,3 +130,121 @@ export async function saveScript(input: SaveScriptInput): Promise<string> {
 
   return script.id
 }
+
+// =========================================================================
+// Edição do roteiro (Fase 4)
+// =========================================================================
+
+export type ScriptPatch = Partial<
+  Pick<
+    Script,
+    | 'title'
+    | 'description'
+    | 'hook_text'
+    | 'cta'
+    | 'strategy_summary'
+    | 'framework'
+    | 'tone'
+    | 'objective'
+    | 'target_audience'
+    | 'pain'
+    | 'desire'
+    | 'promise'
+    | 'duration_seconds'
+    | 'platform'
+    | 'funnel_stage'
+  >
+>
+
+export async function updateScript(id: string, patch: ScriptPatch): Promise<void> {
+  const { error } = await supabase.from('scripts').update(patch).eq('id', id)
+  if (error) throw error
+}
+
+export type ScenePatch = Partial<
+  Pick<
+    Scene,
+    | 'purpose'
+    | 'shot'
+    | 'visual'
+    | 'action'
+    | 'voiceover'
+    | 'on_screen_text'
+    | 'broll'
+    | 'editing_direction'
+    | 'transition'
+    | 'sound_suggestion'
+  >
+>
+
+export async function updateScene(id: string, patch: ScenePatch): Promise<void> {
+  const { error } = await supabase.from('script_scenes').update(patch).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteScene(id: string): Promise<void> {
+  const { error } = await supabase.from('script_scenes').delete().eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * Reordena via RPC, em UMA transação.
+ *
+ * Updates separados (um request por cena) rodam em transações distintas: mover
+ * a cena do índice 2 para o 0 esbarraria na unique enquanto o 0 ainda está
+ * ocupado. A constraint DEFERRABLE só adia a checagem dentro da mesma
+ * transação — por isso isto precisa ser RPC, não um Promise.all de updates.
+ */
+export async function reorderScenes(scriptId: string, sceneIdsInOrder: string[]): Promise<void> {
+  const { error } = await supabase.rpc('reorder_script_scenes', {
+    p_script_id: scriptId,
+    p_scene_ids: sceneIdsInOrder,
+  })
+  if (error) throw error
+}
+
+export async function addScene(
+  workspaceId: string,
+  scriptId: string,
+  orderIndex: number,
+  values: ScenePatch = {},
+): Promise<Scene> {
+  const { data, error } = await supabase
+    .from('script_scenes')
+    .insert({
+      workspace_id: workspaceId,
+      script_id: scriptId,
+      order_index: orderIndex,
+      ...values,
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Duplica a cena logo abaixo da original.
+ * Insere no fim (índice livre) e só então reordena pela RPC atômica — assim
+ * nenhum passo intermediário colide com a unique.
+ */
+export async function duplicateScene(
+  scriptId: string,
+  scene: Scene,
+  allScenes: Scene[],
+): Promise<void> {
+  const { id: _id, created_at: _c, updated_at: _u, ...rest } = scene
+
+  const { data: copy, error } = await supabase
+    .from('script_scenes')
+    .insert({ ...rest, order_index: allScenes.length })
+    .select('id')
+    .single()
+  if (error) throw error
+
+  const ordered = allScenes.flatMap((item) =>
+    item.id === scene.id ? [item.id, copy.id] : [item.id],
+  )
+  await reorderScenes(scriptId, ordered)
+}

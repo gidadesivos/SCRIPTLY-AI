@@ -10,6 +10,8 @@ export const PROMPT_VERSIONS = {
   generateAngles: 'ANGLE_GENERATOR_V1',
   generateHooks: 'HOOK_GENERATOR_V1',
   generateScript: 'SCRIPT_GENERATOR_V1',
+  rewriteSection: 'SURGICAL_EDITOR_V1',
+  generateVariations: 'VARIATION_GENERATOR_V1',
 } as const
 
 /** Base de todo prompt de conteúdo (§7.1). */
@@ -131,4 +133,58 @@ Regras:
 - Termine com CTA coerente com o objetivo e o estágio de funil.
 - "strategy_summary" explica em 2 a 3 frases por que esse roteiro funciona.
 - Placeholders entre colchetes para qualquer dado que você não tenha.`
+}
+
+/**
+ * Editor cirúrgico (§7.3). O modelo recebe o alvo e devolve APENAS o fragmento
+ * alterado — nunca o roteiro inteiro reescrito.
+ */
+export function rewriteSectionPrompt(
+  instruction: string,
+  target: { label: string; current: string },
+  surrounding: string,
+  blocks: ContextBlocks,
+): string {
+  return `${contextSection(blocks)}Reescreva APENAS o trecho indicado. Não devolva o roteiro inteiro.
+
+<target>
+Campo: ${target.label}
+Conteúdo atual: ${target.current}
+</target>
+
+<surrounding_context>
+${surrounding}
+</surrounding_context>
+
+<user_input>
+Instrução: ${instruction}
+</user_input>
+
+Regras:
+- Devolva somente o novo conteúdo desse campo, nada mais.
+- Preserve a função narrativa que o trecho já cumpre no roteiro.
+- Mantenha o mesmo idioma, tom e restrições da marca.
+- Se a instrução não fizer sentido para este campo, devolva o conteúdo atual inalterado e explique em "note".`
+}
+
+export function generateVariationsPrompt(
+  script: { title: string; hook: string; cta: string; scenes: string[] },
+  count: number,
+  blocks: ContextBlocks,
+): string {
+  return `${contextSection(blocks)}Crie ${count} variações do roteiro abaixo para teste A/B.
+
+<user_input>
+Título: ${script.title}
+Hook: ${script.hook}
+CTA: ${script.cta}
+Locução por cena:
+${script.scenes.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+</user_input>
+
+Regras:
+- Cada variação muda o ÂNGULO DE ENTRADA ou o mecanismo, não só as palavras.
+- Mantenha a mesma oferta, a mesma promessa e a mesma duração-alvo.
+- "hypothesis" diz o que essa variação testa em relação ao original.
+- Devolva hook e locução de cada cena; mantenha a mesma quantidade de cenas.`
 }

@@ -27,6 +27,8 @@ export type OperationName =
   | 'generateAngles'
   | 'generateHooks'
   | 'generateScript'
+  | 'rewriteSection'
+  | 'generateVariations'
 
 /**
  * Temperatura por operação: extração precisa ser literal, criação precisa variar.
@@ -37,6 +39,9 @@ export const TEMPERATURE: Record<OperationName, number> = {
   generateAngles: 0.9,
   generateHooks: 1.0,
   generateScript: 0.7,
+  // Cirúrgico: baixa temperatura, para alterar o alvo sem reinventar o resto.
+  rewriteSection: 0.5,
+  generateVariations: 0.9,
 }
 
 export const MAX_OUTPUT_TOKENS: Record<OperationName, number> = {
@@ -45,6 +50,8 @@ export const MAX_OUTPUT_TOKENS: Record<OperationName, number> = {
   generateAngles: 4096,
   generateHooks: 4096,
   generateScript: 8192,
+  rewriteSection: 1024,
+  generateVariations: 8192,
 }
 
 /** Anti-repetição (§7.4): quantos títulos/textos recentes enviar como "evite". */

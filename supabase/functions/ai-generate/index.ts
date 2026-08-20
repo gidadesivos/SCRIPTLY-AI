@@ -12,7 +12,9 @@ import {
   generateAnglesPrompt,
   generateHooksPrompt,
   generateScriptPrompt,
+  generateVariationsPrompt,
   parseFreeformIdeaPrompt,
+  rewriteSectionPrompt,
 } from '../_shared/prompts.ts'
 import {
   anglesGeminiSchema,
@@ -21,8 +23,12 @@ import {
   briefZodSchema,
   hooksGeminiSchema,
   hooksZodSchema,
+  rewriteGeminiSchema,
+  rewriteZodSchema,
   scriptGeminiSchema,
   scriptZodSchema,
+  variationsGeminiSchema,
+  variationsZodSchema,
 } from '../_shared/schemas.ts'
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
@@ -66,6 +72,31 @@ const requestSchema = z.discriminatedUnion('operation', [
     brief: briefSchema,
     angle: angleSchema,
     hook: z.string().min(1),
+  }),
+  z.object({
+    operation: z.literal('rewriteSection'),
+    workspaceId: z.string().uuid(),
+    brandId: z.string().uuid(),
+    productId: z.string().uuid().nullish(),
+    instruction: z.string().min(1).max(500),
+    target: z.object({
+      label: z.string().min(1),
+      current: z.string(),
+    }),
+    surrounding: z.string().max(8000).default(''),
+  }),
+  z.object({
+    operation: z.literal('generateVariations'),
+    workspaceId: z.string().uuid(),
+    brandId: z.string().uuid(),
+    productId: z.string().uuid().nullish(),
+    script: z.object({
+      title: z.string(),
+      hook: z.string(),
+      cta: z.string(),
+      scenes: z.array(z.string()),
+    }),
+    count: z.number().int().min(1).max(3).default(2),
   }),
 ])
 
@@ -174,6 +205,27 @@ Deno.serve(async (req) => {
             userPrompt: generateScriptPrompt(body.brief, body.angle, body.hook, blocks),
             geminiSchema: scriptGeminiSchema,
             zodSchema: scriptZodSchema,
+          })
+        case 'rewriteSection':
+          return runOperation({
+            apiKey: GEMINI_API_KEY,
+            operation: 'rewriteSection',
+            userPrompt: rewriteSectionPrompt(
+              body.instruction,
+              body.target,
+              body.surrounding,
+              blocks,
+            ),
+            geminiSchema: rewriteGeminiSchema,
+            zodSchema: rewriteZodSchema,
+          })
+        case 'generateVariations':
+          return runOperation({
+            apiKey: GEMINI_API_KEY,
+            operation: 'generateVariations',
+            userPrompt: generateVariationsPrompt(body.script, body.count, blocks),
+            geminiSchema: variationsGeminiSchema,
+            zodSchema: variationsZodSchema,
           })
       }
     })()

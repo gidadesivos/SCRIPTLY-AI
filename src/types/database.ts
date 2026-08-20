@@ -170,6 +170,33 @@ type AiGenerationColumns = {
   created_at: string
 }
 
+type VersionColumns = {
+  id: string
+  workspace_id: string
+  script_id: string
+  version_number: number
+  snapshot: ScriptSnapshot
+  change_description: string | null
+  created_by: string
+  created_at: string
+}
+
+type VariationColumns = {
+  id: string
+  workspace_id: string
+  parent_script_id: string
+  variation_script_id: string
+  label: string
+  created_by: string
+  created_at: string
+}
+
+/** Conteúdo do snapshot de versão: roteiro + cenas no momento do marco. */
+export interface ScriptSnapshot {
+  script: Partial<ScriptColumns>
+  scenes: Array<Partial<SceneColumns>>
+}
+
 type Insertable<T, Required extends keyof T> = Partial<Omit<T, Required>> & Pick<T, Required>
 
 export interface Database {
@@ -315,6 +342,24 @@ export interface Database {
           },
         ]
       }
+      script_versions: {
+        Row: VersionColumns
+        Insert: Insertable<
+          VersionColumns,
+          'workspace_id' | 'script_id' | 'version_number' | 'snapshot' | 'created_by'
+        >
+        Update: Partial<VersionColumns>
+        Relationships: []
+      }
+      script_variations: {
+        Row: VariationColumns
+        Insert: Insertable<
+          VariationColumns,
+          'workspace_id' | 'parent_script_id' | 'variation_script_id' | 'label' | 'created_by'
+        >
+        Update: Partial<VariationColumns>
+        Relationships: []
+      }
       ai_generations: {
         Row: AiGenerationColumns
         Insert: Insertable<
@@ -338,6 +383,22 @@ export interface Database {
       create_workspace_with_owner: {
         Args: { p_name: string; p_slug: string }
         Returns: string
+      }
+      reorder_script_scenes: {
+        Args: { p_script_id: string; p_scene_ids: string[] }
+        Returns: undefined
+      }
+      restore_script_version: {
+        Args: { p_script_id: string; p_version_id: string }
+        Returns: undefined
+      }
+      create_script_version: {
+        Args: {
+          p_script_id: string
+          p_snapshot: ScriptSnapshot
+          p_change_description?: string | null
+        }
+        Returns: number
       }
     }
     Enums: {
