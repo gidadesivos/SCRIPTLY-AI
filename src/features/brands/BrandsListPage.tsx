@@ -19,6 +19,7 @@ import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspa
 import { useBrands } from '@/features/brands/hooks/useBrands'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import type { ResourceStatus } from '@/types/database'
+import { dbErrorMessage } from '@/lib/db-errors'
 import { strings } from '@/i18n/pt-BR'
 
 export function BrandsListPage() {
@@ -31,6 +32,7 @@ export function BrandsListPage() {
     data: brands,
     isPending,
     isError,
+    error,
     refetch,
   } = useBrands({
     workspaceId: activeWorkspace?.id ?? '',
@@ -92,7 +94,7 @@ export function BrandsListPage() {
       {isError && (
         <EmptyState
           title={strings.errors.unexpected}
-          description="Não foi possível carregar as marcas."
+          description={dbErrorMessage(error)}
           action={
             <Button variant="outline" className="h-11" onClick={() => refetch()}>
               {strings.common.tryAgain}

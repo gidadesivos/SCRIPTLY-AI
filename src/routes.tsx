@@ -11,6 +11,7 @@ import { ProductsListPage } from '@/features/products/ProductsListPage'
 import { ProductEditorPage } from '@/features/products/ProductEditorPage'
 import { CreatePage } from '@/features/create/CreatePage'
 import { ScriptEditorPage } from '@/features/scripts/ScriptEditorPage'
+import { ScriptsListPage } from '@/features/scripts/ScriptsListPage'
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/create', element: <CreatePage /> },
+          { path: '/scripts', element: <ScriptsListPage /> },
           { path: '/scripts/:scriptId', element: <ScriptEditorPage /> },
           { path: '/brands', element: <BrandsListPage /> },
           { path: '/brands/new', element: <BrandEditorPage /> },

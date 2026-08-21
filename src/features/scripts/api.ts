@@ -248,3 +248,59 @@ export async function duplicateScene(
   )
   await reorderScenes(scriptId, ordered)
 }
+
+// =========================================================================
+// Biblioteca de roteiros (Fase 5)
+// =========================================================================
+
+export interface ScriptFilters {
+  workspaceId: string
+  search?: string
+  status?: string | 'all'
+  brandId?: string | 'all'
+  platform?: string | 'all'
+  page?: number
+  pageSize?: number
+}
+
+export interface ScriptsPage {
+  items: ScriptWithBrand[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const SCRIPTS_PAGE_SIZE = 12
+
+/** Lista paginada — nunca carrega a biblioteca inteira para mostrar 12 cards. */
+export async function listScripts({
+  workspaceId,
+  search,
+  status,
+  brandId,
+  platform,
+  page = 0,
+  pageSize = SCRIPTS_PAGE_SIZE,
+}: ScriptFilters): Promise<ScriptsPage> {
+  let query = supabase
+    .from('scripts')
+    .select('*, brand:brands(id, name)', { count: 'exact' })
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false })
+    .range(page * pageSize, page * pageSize + pageSize - 1)
+
+  if (status && status !== 'all') query = query.eq('status', status as Script['status'])
+  if (brandId && brandId !== 'all') query = query.eq('brand_id', brandId)
+  if (platform && platform !== 'all') query = query.eq('platform', platform as Platform)
+  if (search?.trim()) query = query.ilike('title', `%${search.trim()}%`)
+
+  const { data, error, count } = await query
+  if (error) throw error
+
+  return {
+    items: data as unknown as ScriptWithBrand[],
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
+}

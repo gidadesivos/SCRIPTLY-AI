@@ -31,6 +31,7 @@ import {
 } from '@/features/products/hooks/useProducts'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import type { ResourceStatus } from '@/types/database'
+import { dbErrorMessage } from '@/lib/db-errors'
 import { strings } from '@/i18n/pt-BR'
 
 export function ProductsListPage() {
@@ -46,6 +47,7 @@ export function ProductsListPage() {
     data: products,
     isPending,
     isError,
+    error,
     refetch,
   } = useProducts({ workspaceId, search: debouncedSearch, status, brandId })
 
@@ -162,7 +164,7 @@ export function ProductsListPage() {
           {isError && (
             <EmptyState
               title={strings.errors.unexpected}
-              description="Não foi possível carregar os produtos."
+              description={dbErrorMessage(error)}
               action={
                 <Button variant="outline" className="h-11" onClick={() => refetch()}>
                   {strings.common.tryAgain}

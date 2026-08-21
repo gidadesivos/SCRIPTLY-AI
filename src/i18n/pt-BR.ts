@@ -28,6 +28,15 @@ export const strings = {
     activeBrand: 'Marca ativa',
     noBrands: 'Nenhuma marca',
   },
+  scripts: {
+    title: 'Roteiros',
+    subtitle: 'Tudo que já foi criado neste workspace.',
+    searchPlaceholder: 'Buscar roteiro pelo título',
+    emptyTitle: 'Nenhum roteiro ainda',
+    emptyDescription: 'Crie o primeiro a partir de uma ideia solta — a IA cuida do resto.',
+    noResultsTitle: 'Nenhum roteiro encontrado',
+    noResultsDescription: 'Tente outro termo ou ajuste os filtros.',
+  },
   products: {
     title: 'Produtos',
     subtitle: 'O que cada marca vende — oferta, benefícios e objeções.',
