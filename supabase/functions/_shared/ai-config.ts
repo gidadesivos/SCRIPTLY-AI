@@ -3,7 +3,12 @@
  * O nome do modelo aparece SÓ aqui — não replicar em prompt nem em operação.
  */
 
-export const AI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash'
+/**
+ * gemini-2.5-flash foi descontinuado para contas novas: a API responde
+ * "no longer available to new users" e manda usar a 3.6. Trocado depois de
+ * ver esse erro na telemetria de ai_generations.
+ */
+export const AI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash'
 
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 

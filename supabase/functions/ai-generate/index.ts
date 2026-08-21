@@ -264,8 +264,17 @@ Deno.serve(async (req) => {
       errorMessage: (error as Error).message,
     })
 
-    if (isInvalidOutput) return errorResponse('invalid_ai_output', 502)
-    if (isGeminiDown) return errorResponse('ai_unavailable', 503)
+    // Sem este log, uma falha do Gemini só aparecia em ai_generations. O erro
+    // que derrubou o primeiro deploy ("modelo descontinuado") ficou invisível
+    // nos logs por causa disso.
+    if (isInvalidOutput) {
+      console.error('[ai-generate] saída inválida:', (error as Error).message)
+      return errorResponse('invalid_ai_output', 502)
+    }
+    if (isGeminiDown) {
+      console.error('[ai-generate] Gemini falhou:', (error as Error).message)
+      return errorResponse('ai_unavailable', 503, (error as Error).message)
+    }
 
     console.error('Erro inesperado em ai-generate:', (error as Error).message)
     return errorResponse('unexpected', 500)
