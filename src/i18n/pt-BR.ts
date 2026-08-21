@@ -98,9 +98,14 @@ export const strings = {
   },
   aiErrors: {
     rateLimited: 'Muitas gerações seguidas. Aguarde um minuto e tente de novo.',
-    unavailable: 'A IA está indisponível no momento. Tente novamente em instantes.',
+    unavailable:
+      'A IA não respondeu. Verifique se o secret GEMINI_API_KEY está configurado na Edge Function.',
     invalidOutput:
       'A IA devolveu uma resposta fora do formato esperado. Tente gerar de novo.',
+    notDeployed:
+      'Não foi possível alcançar a função de IA. Publique com: supabase functions deploy ai-generate — depois confira em Configurações › Verificar instalação.',
+    functionFailed:
+      'A função de IA respondeu com erro. Veja os logs em Edge Functions › ai-generate no Supabase.',
   },
   create: {
     title: 'Criar roteiro',

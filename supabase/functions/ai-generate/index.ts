@@ -1,6 +1,6 @@
 import { z } from 'npm:zod@3.23.8'
 import { AI_MODEL } from '../_shared/ai-config.ts'
-import { authenticate, AuthError } from '../_shared/auth.ts'
+import { authenticate, AuthError, ConfigError } from '../_shared/auth.ts'
 import { buildContext } from '../_shared/context.ts'
 import { GeminiError } from '../_shared/gemini.ts'
 import { corsHeaders, errorResponse, jsonResponse } from '../_shared/http.ts'
@@ -124,6 +124,12 @@ Deno.serve(async (req) => {
     if (error instanceof AuthError) {
       return errorResponse(error.code, error.code === 'unauthorized' ? 401 : 403, error.message)
     }
+    if (error instanceof ConfigError) {
+      // Erro de instalação, não do usuário: precisa aparecer nomeado.
+      console.error('[ai-generate] configuração ausente:', error.message)
+      return errorResponse('ai_unavailable', 503, error.message)
+    }
+    console.error('[ai-generate] falha na autenticação:', (error as Error).message)
     return errorResponse('unexpected', 500)
   }
 

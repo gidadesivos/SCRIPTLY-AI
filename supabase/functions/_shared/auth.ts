@@ -1,10 +1,27 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+
+/**
+ * O Supabase injeta a chave de serviço automaticamente, mas o nome da variável
+ * mudou com o novo formato de chaves (sb_secret_...). Aceita os dois para a
+ * function não morrer no boot dependendo da idade do projeto.
+ */
+const SERVICE_ROLE_KEY =
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY')
+
+export class ConfigError extends Error {}
 
 /** Cliente admin: ignora RLS. Só para telemetria e checagens explícitas. */
 export function adminClient(): SupabaseClient {
+  // Sem isto, createClient(url, undefined) estoura e todo request vira 500 sem
+  // explicação nenhuma no cliente.
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    throw new ConfigError(
+      'A function não recebeu SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY do ambiente.',
+    )
+  }
+
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   })

@@ -75,6 +75,15 @@ interface ErrorBody {
   error?: { code?: string; detail?: string }
 }
 
+function isResponse(value: unknown): value is Response {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'status' in value &&
+    typeof (value as Response).json === 'function'
+  )
+}
+
 async function invoke<T>(payload: Record<string, unknown>): Promise<T> {
   if (!navigator.onLine) throw new AiError(strings.errors.offline, 'offline')
 
@@ -86,16 +95,39 @@ async function invoke<T>(payload: Record<string, unknown>): Promise<T> {
   })
 
   if (error) {
-    // FunctionsHttpError expõe a resposta original; é dela que vem nosso código.
-    const context = (error as { context?: Response }).context
-    if (context && typeof context.json === 'function') {
+    // O erro real nunca deve sumir: sem isto, "algo deu errado" não dá para depurar.
+    console.error('[ai-generate] falha na invocação:', error)
+
+    const context = (error as { context?: unknown }).context
+
+    // FunctionsHttpError: non-2xx. context é a Response, e é dela que vem nosso código.
+    if (isResponse(context)) {
       const body = (await context.json().catch(() => null)) as ErrorBody | null
       const code = body?.error?.code
+
       if (code) {
-        throw new AiError(body?.error?.detail || MESSAGE_BY_CODE[code] || strings.errors.unexpected, code)
+        throw new AiError(
+          body?.error?.detail || MESSAGE_BY_CODE[code] || strings.errors.unexpected,
+          code,
+        )
       }
+
+      // Sem corpo reconhecível: o status já diz muito.
+      if (context.status === 404) {
+        throw new AiError(strings.aiErrors.notDeployed, 'not_deployed')
+      }
+      if (context.status === 401 || context.status === 403) {
+        throw new AiError(strings.errors.sessionExpired, 'unauthorized')
+      }
+      throw new AiError(
+        `${strings.aiErrors.functionFailed} (HTTP ${context.status})`,
+        'function_error',
+      )
     }
-    throw new AiError(strings.errors.unexpected, 'unexpected')
+
+    // FunctionsFetchError / FunctionsRelayError: a requisição nem chegou à function.
+    // Na prática isso é function não publicada, CORS ou rede.
+    throw new AiError(strings.aiErrors.notDeployed, 'not_deployed')
   }
 
   if (!data) throw new AiError(strings.errors.unexpected, 'unexpected')
