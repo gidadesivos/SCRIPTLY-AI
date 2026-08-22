@@ -33,6 +33,28 @@ import {
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 
+/**
+ * Roda a promessa depois de responder, sem segurar o usuário.
+ *
+ * A telemetria é um insert no banco: esperar por ela adicionava um ida-e-volta
+ * ao fim de toda geração, para gravar algo que ninguém está lendo naquele
+ * instante. waitUntil mantém a function viva até terminar, então o registro
+ * continua sendo gravado — só deixa de bloquear a resposta.
+ *
+ * Declarado aqui porque o tipo não vem do Deno: é do runtime do Supabase.
+ */
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined
+
+function inBackground(promise: Promise<unknown>) {
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime) {
+    EdgeRuntime.waitUntil(promise)
+    return
+  }
+  // Sem waitUntil (execução local, runtime antigo): não deixar a promessa
+  // rejeitar sozinha e derrubar o processo.
+  promise.catch((error) => console.error('Falha em tarefa de fundo:', error))
+}
+
 const angleSchema = z.object({ type: z.string(), description: z.string() })
 const briefSchema = z.record(z.unknown())
 
@@ -236,33 +258,37 @@ Deno.serve(async (req) => {
       }
     })()
 
-    await recordGeneration(admin, {
-      workspaceId,
-      userId,
-      generationType: body.operation,
-      promptVersion,
-      model: AI_MODEL,
-      status: 'success',
-      latencyMs: Date.now() - startedAt,
-      inputTokens: outcome.inputTokens,
-      outputTokens: outcome.outputTokens,
-    })
+    inBackground(
+      recordGeneration(admin, {
+        workspaceId,
+        userId,
+        generationType: body.operation,
+        promptVersion,
+        model: AI_MODEL,
+        status: 'success',
+        latencyMs: Date.now() - startedAt,
+        inputTokens: outcome.inputTokens,
+        outputTokens: outcome.outputTokens,
+      }),
+    )
 
     return jsonResponse({ data: outcome.data })
   } catch (error) {
     const isInvalidOutput = error instanceof InvalidAiOutputError
     const isGeminiDown = error instanceof GeminiError
 
-    await recordGeneration(admin, {
-      workspaceId,
-      userId,
-      generationType: body.operation,
-      promptVersion,
-      model: AI_MODEL,
-      status: isInvalidOutput ? 'invalid_output' : 'error',
-      latencyMs: Date.now() - startedAt,
-      errorMessage: (error as Error).message,
-    })
+    inBackground(
+      recordGeneration(admin, {
+        workspaceId,
+        userId,
+        generationType: body.operation,
+        promptVersion,
+        model: AI_MODEL,
+        status: isInvalidOutput ? 'invalid_output' : 'error',
+        latencyMs: Date.now() - startedAt,
+        errorMessage: (error as Error).message,
+      }),
+    )
 
     // Sem este log, uma falha do Gemini só aparecia em ai_generations. O erro
     // que derrubou o primeiro deploy ("modelo descontinuado") ficou invisível

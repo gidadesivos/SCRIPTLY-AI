@@ -59,6 +59,8 @@ interface CallOptions {
   responseSchema: GeminiSchema
   temperature: number
   maxOutputTokens: number
+  /** Omitido = o modelo decide quanto pensar. Ver THINKING_LEVEL. */
+  thinkingLevel?: 'low'
 }
 
 async function callOnce(apiKey: string, options: CallOptions): Promise<GeminiResult> {
@@ -83,6 +85,11 @@ async function callOnce(apiKey: string, options: CallOptions): Promise<GeminiRes
             maxOutputTokens: options.maxOutputTokens,
             responseMimeType: 'application/json',
             responseSchema: options.responseSchema,
+            // Só vai quando há nível definido: mandar thinkingConfig vazio, ou
+            // junto do thinkingBudget antigo, é 400 na API.
+            ...(options.thinkingLevel
+              ? { thinkingConfig: { thinkingLevel: options.thinkingLevel } }
+              : {}),
           },
         }),
       },

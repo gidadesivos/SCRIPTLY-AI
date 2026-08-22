@@ -34,13 +34,29 @@ export async function buildContext(
   brandId: string,
   productId?: string | null,
 ): Promise<BuiltContext> {
-  const { data: brand, error: brandError } = await admin
-    .from('brands')
-    .select('*')
-    .eq('id', brandId)
-    .eq('workspace_id', workspaceId)
-    .single()
+  // As três consultas são independentes entre si. Em série, cada uma custava um
+  // ida-e-volta até o banco antes de o modelo sequer começar a responder.
+  const [brandResult, productResult, recentResult] = await Promise.all([
+    admin.from('brands').select('*').eq('id', brandId).eq('workspace_id', workspaceId).single(),
+    productId
+      ? admin
+          .from('products')
+          .select('*')
+          .eq('id', productId)
+          .eq('workspace_id', workspaceId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    // Anti-repetição: só os títulos, nunca o roteiro inteiro.
+    admin
+      .from('scripts')
+      .select('title')
+      .eq('workspace_id', workspaceId)
+      .eq('brand_id', brandId)
+      .order('created_at', { ascending: false })
+      .limit(ANTI_REPETITION_SAMPLE),
+  ])
 
+  const { data: brand, error: brandError } = brandResult
   if (brandError || !brand) throw new Error('Marca não encontrada neste workspace.')
 
   let brandBlock = ''
@@ -64,41 +80,25 @@ export async function buildContext(
   brandBlock += line('Instruções específicas da marca', brand.ai_instructions)
 
   let productBlock = ''
-  if (productId) {
-    const { data: product } = await admin
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .eq('workspace_id', workspaceId)
-      .maybeSingle()
-
-    if (product) {
-      productBlock += line('Produto', product.name)
-      productBlock += line('Categoria', product.category)
-      productBlock += line('Descrição', product.description)
-      productBlock += line('Público', product.target_audience)
-      productBlock += list('Benefícios', product.benefits)
-      productBlock += list('Diferenciais', product.differentiators)
-      productBlock += list('Problemas que resolve', product.problems_solved)
-      productBlock += list('Desejos atendidos', product.desires)
-      productBlock += list('Objeções', product.objections)
-      productBlock += line('Oferta', product.offer)
-      productBlock += line('Faixa de preço', product.price_range)
-      productBlock += line('Garantia', product.guarantee)
-      productBlock += line('CTA padrão', product.default_cta)
-    }
+  const product = productResult.data
+  if (product) {
+    productBlock += line('Produto', product.name)
+    productBlock += line('Categoria', product.category)
+    productBlock += line('Descrição', product.description)
+    productBlock += line('Público', product.target_audience)
+    productBlock += list('Benefícios', product.benefits)
+    productBlock += list('Diferenciais', product.differentiators)
+    productBlock += list('Problemas que resolve', product.problems_solved)
+    productBlock += list('Desejos atendidos', product.desires)
+    productBlock += list('Objeções', product.objections)
+    productBlock += line('Oferta', product.offer)
+    productBlock += line('Faixa de preço', product.price_range)
+    productBlock += line('Garantia', product.guarantee)
+    productBlock += line('CTA padrão', product.default_cta)
   }
 
-  // Anti-repetição: só os títulos, nunca o roteiro inteiro.
   let avoidBlock = ''
-  const { data: recent } = await admin
-    .from('scripts')
-    .select('title')
-    .eq('workspace_id', workspaceId)
-    .eq('brand_id', brandId)
-    .order('created_at', { ascending: false })
-    .limit(ANTI_REPETITION_SAMPLE)
-
+  const recent = recentResult.data
   if (recent?.length) {
     avoidBlock = recent.map((s: { title: string }) => `- ${s.title}`).join('\n')
   }

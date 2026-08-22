@@ -61,3 +61,29 @@ export const MAX_OUTPUT_TOKENS: Record<OperationName, number> = {
 
 /** Anti-repetição (§7.4): quantos títulos/textos recentes enviar como "evite". */
 export const ANTI_REPETITION_SAMPLE = 30
+
+/**
+ * Nível de raciocínio antes de responder (gemini-3.6-flash é um modelo de
+ * "thinking"). Sai como generationConfig.thinkingConfig.thinkingLevel.
+ *
+ * Pensar custa tempo de parede: é a maior parcela da espera em operações onde
+ * não há o que decidir. Por isso as operações mecânicas — extrair campos de
+ * uma frase, completar lacunas, reescrever um trecho com instrução explícita —
+ * vão em 'low'. As criativas ficam no padrão do modelo, porque é ali que o
+ * raciocínio vira ângulo melhor e hook melhor.
+ *
+ * undefined = não manda o campo, o modelo decide.
+ *
+ * generateScript é a espera mais longa do app e o candidato óbvio a virar
+ * 'low'. Não fiz por conta própria: só dá para saber se a qualidade cai
+ * olhando o roteiro gerado, e essa é uma comparação de conteúdo, não de código.
+ */
+export const THINKING_LEVEL: Record<OperationName, 'low' | undefined> = {
+  parseFreeformIdea: 'low',
+  completeBrief: 'low',
+  generateAngles: undefined,
+  generateHooks: undefined,
+  generateScript: undefined,
+  rewriteSection: 'low',
+  generateVariations: undefined,
+}

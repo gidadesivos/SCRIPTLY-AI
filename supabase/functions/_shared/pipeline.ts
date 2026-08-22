@@ -1,7 +1,13 @@
 import { z } from 'npm:zod@3.23.8'
 import { callGemini, type GeminiSchema, type GeminiResult } from './gemini.ts'
 import { CONTENT_SYSTEM_V1 } from './prompts.ts'
-import { MAX_REPAIR_ATTEMPTS, MAX_OUTPUT_TOKENS, TEMPERATURE, type OperationName } from './ai-config.ts'
+import {
+  MAX_REPAIR_ATTEMPTS,
+  MAX_OUTPUT_TOKENS,
+  TEMPERATURE,
+  THINKING_LEVEL,
+  type OperationName,
+} from './ai-config.ts'
 
 export class InvalidAiOutputError extends Error {
   constructor(message: string) {
@@ -64,6 +70,7 @@ export async function runOperation<T>({
       responseSchema: geminiSchema,
       temperature: TEMPERATURE[operation],
       maxOutputTokens: MAX_OUTPUT_TOKENS[operation],
+      thinkingLevel: THINKING_LEVEL[operation],
     })
 
     try {
