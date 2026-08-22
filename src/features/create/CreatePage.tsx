@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { RotateCcw, Sparkles, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -84,6 +84,20 @@ export function CreatePage() {
   const [loadingMessages, setLoadingMessages] = useState<string[] | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
+  /**
+   * Cache do que a IA já devolveu nesta sessão, por entrada.
+   *
+   * Voltar uma etapa para reler o briefing e seguir em frente era uma chamada
+   * nova, com a espera inteira, para receber praticamente a mesma coisa. Com o
+   * cache, ir e voltar é instantâneo e não gasta quota de IA.
+   *
+   * Só o botão "Gerar outros" ignora o cache — ali pedir variedade é o ponto.
+   * Em ref, e não em state: o cache não muda o que está na tela.
+   */
+  const anglesCache = useRef(new Map<string, Angle[]>())
+  const hooksCache = useRef(new Map<string, Hook[]>())
+  const scriptCache = useRef(new Map<string, GeneratedScript>())
+
   const draft: CreateDraft = useMemo(
     () => ({ step, idea, productId, brief, angles, selectedAngle, hooks, selectedHook, script }),
     [step, idea, productId, brief, angles, selectedAngle, hooks, selectedHook, script],
@@ -120,8 +134,21 @@ export function CreatePage() {
       selectedHook: null,
       script: null,
     })
+    anglesCache.current.clear()
+    hooksCache.current.clear()
+    scriptCache.current.clear()
     clearDraft()
   }
+
+  /**
+   * Tudo que a IA gera parte do briefing e do produto: mudar qualquer campo
+   * invalida ângulos, hooks e roteiro guardados. Por isso o briefing inteiro
+   * entra na chave do cache, e não só o que veio depois dele.
+   */
+  const briefKey = useMemo(
+    () => `${JSON.stringify(brief)}|${productId}`,
+    [brief, productId],
+  )
 
   const brandProducts = products.filter((p) => p.brand_id === activeBrand?.id)
   const contextRef = {
@@ -151,13 +178,19 @@ export function CreatePage() {
     }
   }
 
-  async function loadAngles() {
+  async function loadAngles({ force = false } = {}) {
+    const cacheKey = briefKey
+    const cached = force ? undefined : anglesCache.current.get(cacheKey)
+    if (cached) {
+      showAngles(cached)
+      return
+    }
+
     setLoadingMessages([strings.create.loading.angles])
     try {
       const result = await generateAngles(contextRef, brief)
-      setAngles(result.angles)
-      setSelectedAngle(null)
-      setStep('angle')
+      anglesCache.current.set(cacheKey, result.angles)
+      showAngles(result.angles)
     } catch (error) {
       handleAiError(error)
     } finally {
@@ -165,17 +198,32 @@ export function CreatePage() {
     }
   }
 
-  async function loadHooks() {
+  /** Preserva a escolha do usuário quando ela sobrevive à nova lista. */
+  function showAngles(next: Angle[]) {
+    setAngles(next)
+    setSelectedAngle((current) =>
+      next.find((a) => a.type === current?.type && a.title === current?.title) ?? null,
+    )
+    setStep('angle')
+  }
+
+  async function loadHooks({ force = false } = {}) {
     if (!selectedAngle) return
+    const cacheKey = `${briefKey}|${angleKey(selectedAngle)}`
+    const cached = force ? undefined : hooksCache.current.get(cacheKey)
+    if (cached) {
+      showHooks(cached)
+      return
+    }
+
     setLoadingMessages([strings.create.loading.hooks])
     try {
       const result = await generateHooks(contextRef, brief, {
         type: selectedAngle.type,
         description: selectedAngle.description,
       })
-      setHooks(result.hooks)
-      setSelectedHook(null)
-      setStep('hook')
+      hooksCache.current.set(cacheKey, result.hooks)
+      showHooks(result.hooks)
     } catch (error) {
       handleAiError(error)
     } finally {
@@ -183,8 +231,22 @@ export function CreatePage() {
     }
   }
 
+  function showHooks(next: Hook[]) {
+    setHooks(next)
+    setSelectedHook((current) => next.find((h) => h.text === current?.text) ?? null)
+    setStep('hook')
+  }
+
   async function loadScript() {
     if (!selectedAngle || !selectedHook) return
+    const cacheKey = `${briefKey}|${angleKey(selectedAngle)}|${selectedHook.text}`
+    const cached = scriptCache.current.get(cacheKey)
+    if (cached) {
+      setScript(cached)
+      setStep('script')
+      return
+    }
+
     setLoadingMessages([
       strings.create.loading.script,
       strings.create.loading.scenes,
@@ -196,6 +258,7 @@ export function CreatePage() {
         { type: selectedAngle.type, description: selectedAngle.description },
         selectedHook.text,
       )
+      scriptCache.current.set(cacheKey, result)
       setScript(result)
       setStep('script')
     } catch (error) {
@@ -339,7 +402,7 @@ export function CreatePage() {
             <BriefStep
               brief={brief}
               onChange={setBrief}
-              onNext={loadAngles}
+              onNext={() => loadAngles()}
               contextRef={contextRef}
             />
           )}
@@ -349,9 +412,9 @@ export function CreatePage() {
               angles={angles}
               selected={selectedAngle}
               onSelect={setSelectedAngle}
-              onRegenerate={loadAngles}
+              onRegenerate={() => loadAngles({ force: true })}
               onBack={() => setStep('brief')}
-              onNext={loadHooks}
+              onNext={() => loadHooks()}
               isRegenerating={false}
             />
           )}
@@ -361,7 +424,7 @@ export function CreatePage() {
               hooks={hooks}
               selected={selectedHook}
               onSelect={setSelectedHook}
-              onRegenerate={loadHooks}
+              onRegenerate={() => loadHooks({ force: true })}
               onBack={() => setStep('angle')}
               onNext={loadScript}
               isRegenerating={false}
@@ -382,6 +445,11 @@ export function CreatePage() {
       )}
     </div>
   )
+}
+
+/** Identidade de um ângulo para o cache: o tipo sozinho se repete entre listas. */
+function angleKey(angle: Angle) {
+  return `${angle.type}|${angle.title}`
 }
 
 /** "hoje às 14:32" quando é do mesmo dia; a data completa quando é mais antigo. */
