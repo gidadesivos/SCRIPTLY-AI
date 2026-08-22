@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Menu, Loader2 } from 'lucide-react'
 import { AppSidebar } from '@/components/AppSidebar'
+import { RouteFallback } from '@/components/RouteFallback'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ActiveWorkspaceProvider, useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
@@ -46,7 +47,12 @@ function AppShellInner() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <Outlet />
+          {/* As páginas são carregadas sob demanda (routes.tsx); sem este
+              Suspense elas lançariam ao montar. O boundary fica aqui, e não
+              acima, para a barra lateral não sumir a cada navegação. */}
+          <Suspense fallback={<RouteFallback />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 
