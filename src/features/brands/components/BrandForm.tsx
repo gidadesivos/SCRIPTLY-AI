@@ -79,6 +79,7 @@ export function BrandForm({ brand, isSaving, onSubmit, logoSlot }: BrandFormProp
             name="description"
             label="Descrição"
             hint="O que a marca faz, em poucas linhas."
+            ai
           />
           <div className="grid gap-5 sm:grid-cols-2">
             <TextField control={control} name="industry" label="Setor" placeholder="Ex: Alimentação" />
@@ -94,20 +95,23 @@ export function BrandForm({ brand, isSaving, onSubmit, logoSlot }: BrandFormProp
             name="value_proposition"
             label="Proposta de valor"
             hint="A promessa central da marca, em uma frase."
+            ai
           />
           <TextareaField
             control={control}
             name="positioning"
             label="Posicionamento"
             hint="Como a marca quer ser percebida frente aos concorrentes."
+            ai
           />
           <TagField
             control={control}
             name="differentiators"
             label="Diferenciais"
             hint="O que só essa marca tem."
+            ai
           />
-          <TagField control={control} name="benefits" label="Benefícios" />
+          <TagField control={control} name="benefits" label="Benefícios" ai />
         </TabsContent>
 
         <TabsContent value="audience" className="flex flex-col gap-5">
@@ -116,35 +120,39 @@ export function BrandForm({ brand, isSaving, onSubmit, logoSlot }: BrandFormProp
             name="target_audiences"
             label="Públicos-alvo"
             placeholder="Ex: donas de cafeteria de bairro"
+            ai
           />
-          <TagField control={control} name="pains" label="Dores" />
-          <TagField control={control} name="desires" label="Desejos" />
+          <TagField control={control} name="pains" label="Dores" ai />
+          <TagField control={control} name="desires" label="Desejos" ai />
           <TagField
             control={control}
             name="objections"
             label="Objeções"
             hint="O que faz o público hesitar antes de comprar."
+            ai
           />
         </TabsContent>
 
         <TabsContent value="voice" className="flex flex-col gap-5">
           <div className="grid gap-5 sm:grid-cols-2">
-            <TextField control={control} name="tone" label="Tom" placeholder="Ex: direto, próximo" />
+            <TextField control={control} name="tone" label="Tom" placeholder="Ex: direto, próximo" ai />
             <TextField
               control={control}
               name="personality"
               label="Personalidade"
               placeholder="Ex: especialista acessível"
+              ai
             />
           </div>
-          <TagField control={control} name="preferred_words" label="Palavras preferidas" />
+          <TagField control={control} name="preferred_words" label="Palavras preferidas" ai />
           <TagField
             control={control}
             name="forbidden_words"
             label="Palavras proibidas"
             hint="A IA nunca vai usar estas palavras."
+            ai
           />
-          <TagField control={control} name="preferred_ctas" label="CTAs preferidos" />
+          <TagField control={control} name="preferred_ctas" label="CTAs preferidos" ai />
         </TabsContent>
 
         <TabsContent value="proofs" className="flex flex-col gap-5">
@@ -153,8 +161,9 @@ export function BrandForm({ brand, isSaving, onSubmit, logoSlot }: BrandFormProp
             name="proofs"
             label="Provas"
             hint="Dados, casos e resultados reais. A IA só pode citar o que estiver aqui."
+            ai
           />
-          <TagField control={control} name="competitors" label="Concorrentes" />
+          <TagField control={control} name="competitors" label="Concorrentes" ai />
         </TabsContent>
 
         <TabsContent value="ai" className="flex flex-col gap-5">
@@ -164,6 +173,7 @@ export function BrandForm({ brand, isSaving, onSubmit, logoSlot }: BrandFormProp
             label="Instruções para a IA"
             rows={10}
             hint="Regras específicas desta marca que a IA deve seguir ao gerar conteúdo."
+            ai
           />
         </TabsContent>
       </Tabs>

@@ -51,3 +51,12 @@ export function useActiveWorkspace() {
   if (!ctx) throw new Error('useActiveWorkspace precisa estar dentro de <ActiveWorkspaceProvider>')
   return ctx
 }
+
+/**
+ * Versão que devolve null em vez de lançar.
+ * Para componentes opcionais (como o botão de IA), que devem se desabilitar
+ * fora do shell autenticado em vez de derrubar a página inteira.
+ */
+export function useActiveWorkspaceOptional() {
+  return useContext(ActiveWorkspaceContext)
+}

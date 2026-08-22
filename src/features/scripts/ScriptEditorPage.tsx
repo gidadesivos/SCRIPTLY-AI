@@ -16,7 +16,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { AlertTriangle, ArrowLeft, Clock, Copy, Plus, PanelRight } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Clock, Copy, Eye, Pencil, Plus, PanelRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -40,6 +40,7 @@ import { SaveIndicator } from '@/features/scripts/components/SaveIndicator'
 import { CopilotPanel, type CopilotTarget } from '@/features/scripts/components/CopilotPanel'
 import { VersionsPanel } from '@/features/scripts/components/VersionsPanel'
 import { VariationsPanel } from '@/features/scripts/components/VariationsPanel'
+import { ScriptView } from '@/features/scripts/components/ScriptView'
 import { useAutosave } from '@/features/scripts/hooks/useAutosave'
 import {
   addScene,
@@ -76,6 +77,7 @@ export function ScriptEditorPage() {
   const [script, setScript] = useState<ScriptWithBrand | null>(null)
   const [scenes, setScenes] = useState<Scene[]>([])
   const [busySceneId, setBusySceneId] = useState<string | null>(null)
+  const [isViewing, setIsViewing] = useState(false)
 
   useEffect(() => {
     if (!data) return
@@ -292,6 +294,35 @@ export function ScriptEditorPage() {
           action={
             <div className="flex flex-wrap items-center gap-2">
               <SaveIndicator state={scriptSave.state} onRetry={scriptSave.retry} />
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                <Button
+                  variant={isViewing ? 'ghost' : 'secondary'}
+                  size="sm"
+                  className="h-10"
+                  onClick={() => setIsViewing(false)}
+                  aria-pressed={!isViewing}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Editar
+                </Button>
+                <Button
+                  variant={isViewing ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-10"
+                  onClick={() => {
+                    // Descarrega o autosave antes de trocar: a visualização lê o
+                    // estado local, mas o usuário espera que o que viu esteja salvo.
+                    void scriptSave.flush()
+                    void sceneSave.flush()
+                    setIsViewing(true)
+                  }}
+                  aria-pressed={isViewing}
+                >
+                  <Eye className="h-4 w-4" />
+                  Visualizar
+                </Button>
+              </div>
+
               <Select
                 value={script.status}
                 onValueChange={async (value) => {
@@ -344,6 +375,9 @@ export function ScriptEditorPage() {
         />
       </div>
 
+      {isViewing ? (
+        <ScriptView script={script} scenes={scenes} />
+      ) : (
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="flex min-w-0 flex-col gap-4">
           <Card className="flex flex-col gap-4 p-4">
@@ -435,6 +469,7 @@ export function ScriptEditorPage() {
           <div className="sticky top-6">{sidePanel}</div>
         </aside>
       </div>
+      )}
     </div>
   )
 }

@@ -41,3 +41,66 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Impressão — é isto que faz o "Salvar como PDF" do navegador sair limpo,
+   sem precisar de biblioteca de PDF no bundle.
+   Esconde a navegação e força tudo em preto no branco, porque tema escuro
+   imprime como blocos pretos e gasta tinta à toa.
+--------------------------------------------------------------------------- */
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  /* Sidebar, drawer, toasts e barras de ação não pertencem ao documento. */
+  aside,
+  header,
+  nav,
+  [data-sonner-toaster],
+  .print\:hidden {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  * {
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  /* Bordas em cinza claro: no papel, a borda do tema some ou fica preta demais. */
+  table,
+  th,
+  td,
+  .border,
+  .border-border {
+    border-color: #d4d4d8 !important;
+  }
+
+  /* Uma cena não deve ser partida entre duas páginas. */
+  tr,
+  li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* A tabela precisa caber na largura da folha. */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+}

@@ -112,27 +112,29 @@ export function ProductForm({ product, brands, isSaving, onSubmit }: ProductForm
             label="Categoria"
             placeholder="Ex: Comunicação visual"
           />
-          <TextareaField control={control} name="description" label="Descrição" />
+          <TextareaField control={control} name="description" label="Descrição" ai />
           <TextareaField
             control={control}
             name="target_audience"
             label="Público-alvo"
             hint="Para quem esse produto é, especificamente."
             rows={3}
+            ai
           />
         </TabsContent>
 
         <TabsContent value="value" className="flex flex-col gap-5">
-          <TagField control={control} name="benefits" label="Benefícios" />
-          <TagField control={control} name="differentiators" label="Diferenciais" />
+          <TagField control={control} name="benefits" label="Benefícios" ai />
+          <TagField control={control} name="differentiators" label="Diferenciais" ai />
           <TagField
             control={control}
             name="problems_solved"
             label="Problemas que resolve"
             placeholder="Ex: adesivo comum desbota em 3 meses"
+            ai
           />
-          <TagField control={control} name="desires" label="Desejos atendidos" />
-          <TagField control={control} name="objections" label="Objeções" />
+          <TagField control={control} name="desires" label="Desejos atendidos" ai />
+          <TagField control={control} name="objections" label="Objeções" ai />
         </TabsContent>
 
         <TabsContent value="offer" className="flex flex-col gap-5">
@@ -142,6 +144,7 @@ export function ProductForm({ product, brands, isSaving, onSubmit }: ProductForm
             label="Oferta"
             hint="O que exatamente está sendo oferecido."
             rows={3}
+            ai
           />
           <div className="grid gap-5 sm:grid-cols-2">
             <TextField
@@ -155,9 +158,10 @@ export function ProductForm({ product, brands, isSaving, onSubmit }: ProductForm
               name="default_cta"
               label="CTA padrão"
               placeholder="Ex: Peça um orçamento"
+              ai
             />
           </div>
-          <TextareaField control={control} name="guarantee" label="Garantia" rows={3} />
+          <TextareaField control={control} name="guarantee" label="Garantia" rows={3} ai />
           <TextareaField
             control={control}
             name="notes"

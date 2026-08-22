@@ -60,3 +60,8 @@ export function useActiveBrand() {
   if (!ctx) throw new Error('useActiveBrand precisa estar dentro de <ActiveBrandProvider>')
   return ctx
 }
+
+/** Ver useActiveWorkspaceOptional: devolve null em vez de lançar. */
+export function useActiveBrandOptional() {
+  return useContext(ActiveBrandContext)
+}

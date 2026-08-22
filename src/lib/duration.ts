@@ -65,3 +65,42 @@ export function estimateDuration(
 export function formatSeconds(seconds: number): string {
   return `${seconds.toFixed(1).replace('.', ',')} s`
 }
+
+/** Timecode de uma cena dentro do roteiro. */
+export interface SceneTiming {
+  startSeconds: number
+  endSeconds: number
+  words: number
+  seconds: number
+}
+
+/**
+ * Distribui o tempo entre as cenas acumulando a locução de cada uma.
+ *
+ * As colunas start_second/end_second existem no banco desde a Fase 3 mas nunca
+ * foram preenchidas: derivar aqui evita gravar um dado que ficaria defasado
+ * assim que alguém editasse a locução.
+ */
+export function sceneTimings(
+  voiceoverTexts: string[],
+  tone: string | null | undefined,
+): SceneTiming[] {
+  const wps = wordsPerSecondFor(tone)
+  let cursor = 0
+
+  return voiceoverTexts.map((text) => {
+    const words = countWords(text)
+    const seconds = words / wps
+    const startSeconds = cursor
+    cursor += seconds
+    return { startSeconds, endSeconds: cursor, words, seconds }
+  })
+}
+
+/** Formata como mm:ss — é assim que se lê timecode de vídeo curto. */
+export function formatTimecode(seconds: number): string {
+  const safe = Math.max(0, Math.round(seconds))
+  const minutes = Math.floor(safe / 60)
+  const rest = safe % 60
+  return `${minutes}:${String(rest).padStart(2, '0')}`
+}
