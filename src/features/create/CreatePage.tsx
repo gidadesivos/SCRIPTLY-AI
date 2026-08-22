@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Sparkles, Wand2 } from 'lucide-react'
+import { RotateCcw, Sparkles, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -23,6 +23,11 @@ import { ScriptStep } from '@/features/create/components/ScriptStep'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { useActiveBrand } from '@/features/brands/hooks/useActiveBrand'
 import { useProducts } from '@/features/products/hooks/useProducts'
+import {
+  useCreateDraft,
+  type CreateDraft,
+  type StepKey,
+} from '@/features/create/hooks/useCreateDraft'
 import { saveScript } from '@/features/scripts/api'
 import {
   AiError,
@@ -35,8 +40,6 @@ import {
   type Hook,
 } from '@/lib/ai'
 import { strings } from '@/i18n/pt-BR'
-
-type StepKey = 'idea' | 'brief' | 'angle' | 'hook' | 'script'
 
 const STEPS: Step[] = [
   { key: 'idea', label: strings.create.steps.idea },
@@ -80,6 +83,45 @@ export function CreatePage() {
 
   const [loadingMessages, setLoadingMessages] = useState<string[] | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  const draft: CreateDraft = useMemo(
+    () => ({ step, idea, productId, brief, angles, selectedAngle, hooks, selectedHook, script }),
+    [step, idea, productId, brief, angles, selectedAngle, hooks, selectedHook, script],
+  )
+
+  function applyDraft(next: CreateDraft) {
+    setStep(next.step)
+    setIdea(next.idea)
+    setProductId(next.productId)
+    setBrief(next.brief)
+    setAngles(next.angles)
+    setSelectedAngle(next.selectedAngle)
+    setHooks(next.hooks)
+    setSelectedHook(next.selectedHook)
+    setScript(next.script)
+  }
+
+  const { restoredAt, clear: clearDraft } = useCreateDraft({
+    workspaceId,
+    brandId: activeBrand?.id ?? '',
+    draft,
+    onRestore: applyDraft,
+  })
+
+  function startOver() {
+    applyDraft({
+      step: 'idea',
+      idea: '',
+      productId: 'none',
+      brief: EMPTY_BRIEF,
+      angles: [],
+      selectedAngle: null,
+      hooks: [],
+      selectedHook: null,
+      script: null,
+    })
+    clearDraft()
+  }
 
   const brandProducts = products.filter((p) => p.brand_id === activeBrand?.id)
   const contextRef = {
@@ -192,6 +234,9 @@ export function CreatePage() {
         strategySummary: script.strategy_summary,
         scenes: script.scenes,
       })
+      // O rascunho virou roteiro no banco: manter a cópia local só faria o
+      // fluxo reabrir num trabalho que já está salvo.
+      clearDraft()
       toast.success('Roteiro salvo.')
       navigate(`/scripts/${id}`)
     } catch {
@@ -226,6 +271,18 @@ export function CreatePage() {
       />
 
       <StepIndicator steps={STEPS} currentIndex={currentIndex} />
+
+      {restoredAt && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
+          <p className="text-sm text-muted-foreground">
+            Retomamos seu rascunho de {formatRestoredAt(restoredAt)}.
+          </p>
+          <Button variant="ghost" size="sm" className="h-9" onClick={startOver}>
+            <RotateCcw className="h-4 w-4" />
+            Começar do zero
+          </Button>
+        </div>
+      )}
 
       {loadingMessages ? (
         <AiLoading messages={loadingMessages} />
@@ -325,4 +382,12 @@ export function CreatePage() {
       )}
     </div>
   )
+}
+
+/** "hoje às 14:32" quando é do mesmo dia; a data completa quando é mais antigo. */
+function formatRestoredAt(date: Date) {
+  const isToday = date.toDateString() === new Date().toDateString()
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (isToday) return `hoje às ${time}`
+  return `${date.toLocaleDateString('pt-BR')} às ${time}`
 }
