@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   DndContext,
@@ -16,7 +16,17 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { AlertTriangle, ArrowLeft, Clock, Copy, Eye, Pencil, Plus, PanelRight } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Clock,
+  Copy,
+  Eye,
+  Pencil,
+  Plus,
+  PanelRight,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -41,6 +51,10 @@ import { CopilotPanel, type CopilotTarget } from '@/features/scripts/components/
 import { VersionsPanel } from '@/features/scripts/components/VersionsPanel'
 import { VariationsPanel } from '@/features/scripts/components/VariationsPanel'
 import { ScriptView } from '@/features/scripts/components/ScriptView'
+import { DeleteScriptDialog } from '@/features/scripts/components/DeleteScriptDialog'
+import { useDeleteScript } from '@/features/scripts/hooks/useScriptActions'
+import { canDeleteScripts } from '@/lib/permissions'
+import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { useAutosave } from '@/features/scripts/hooks/useAutosave'
 import {
   addScene,
@@ -64,8 +78,13 @@ import { strings } from '@/i18n/pt-BR'
 
 export function ScriptEditorPage() {
   const { scriptId } = useParams<{ scriptId: string }>()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const queryKey = ['scripts', 'detail', scriptId]
+
+  const { activeWorkspace } = useActiveWorkspace()
+  const canDelete = canDeleteScripts(activeWorkspace?.role)
+  const remove = useDeleteScript()
 
   const { data, isPending, isError } = useQuery({
     queryKey,
@@ -78,6 +97,7 @@ export function ScriptEditorPage() {
   const [scenes, setScenes] = useState<Scene[]>([])
   const [busySceneId, setBusySceneId] = useState<string | null>(null)
   const [isViewing, setIsViewing] = useState(false)
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
 
   useEffect(() => {
     if (!data) return
@@ -358,6 +378,17 @@ export function ScriptEditorPage() {
                 {strings.common.duplicate}
               </Button>
 
+              {canDelete && (
+                <Button
+                  variant="outline"
+                  className="h-11 text-destructive hover:text-destructive"
+                  onClick={() => setIsConfirmingDelete(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Excluir
+                </Button>
+              )}
+
               <Sheet>
                 <SheetTrigger asChild>
                   <Button variant="outline" className="h-11 lg:hidden">
@@ -470,6 +501,22 @@ export function ScriptEditorPage() {
         </aside>
       </div>
       )}
+
+      <DeleteScriptDialog
+        scriptId={isConfirmingDelete ? script.id : null}
+        title={script.title}
+        isDeleting={remove.isPending}
+        onCancel={() => setIsConfirmingDelete(false)}
+        onConfirm={() => {
+          remove.mutate(script.id, {
+            // Sai da página só quando deu certo. Navegar sempre mandaria o
+            // usuário para a lista mesmo quando a RLS barrou, e ele acharia
+            // que apagou.
+            onSuccess: () => navigate('/scripts'),
+            onError: () => setIsConfirmingDelete(false),
+          })
+        }}
+      />
     </div>
   )
 }

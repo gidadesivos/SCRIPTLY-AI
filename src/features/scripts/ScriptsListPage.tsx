@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, Clock, FileText, Gauge, Plus, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText, Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
@@ -17,15 +16,28 @@ import {
 } from '@/components/ui/select'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { useBrands } from '@/features/brands/hooks/useBrands'
-import { listScripts, SCRIPTS_PAGE_SIZE } from '@/features/scripts/api'
+import { listScripts, SCRIPTS_PAGE_SIZE, type ScriptWithBrand } from '@/features/scripts/api'
+import { ScriptCard } from '@/features/scripts/components/ScriptCard'
+import { DeleteScriptDialog } from '@/features/scripts/components/DeleteScriptDialog'
+import { useArchiveScript, useDeleteScript } from '@/features/scripts/hooks/useScriptActions'
+import { canDeleteScripts, canEditScripts } from '@/lib/permissions'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
-import { labelFor, PLATFORMS, SCRIPT_STATUSES } from '@/config/options'
+import { PLATFORMS, SCRIPT_STATUSES } from '@/config/options'
 import { dbErrorMessage } from '@/lib/db-errors'
 import { strings } from '@/i18n/pt-BR'
 
 export function ScriptsListPage() {
   const { activeWorkspace } = useActiveWorkspace()
   const workspaceId = activeWorkspace?.id ?? ''
+
+  // O papel vem do banco (ver listWorkspaces): oferecer "Excluir" a quem a RLS
+  // barra produziria um sucesso falso, porque delete barrado volta sem erro.
+  const canDelete = canDeleteScripts(activeWorkspace?.role)
+  const canArchive = canEditScripts(activeWorkspace?.role)
+
+  const archive = useArchiveScript()
+  const remove = useDeleteScript()
+  const [pendingDelete, setPendingDelete] = useState<ScriptWithBrand | null>(null)
 
   // Permite chegar filtrado a partir do dashboard (/scripts?status=roteiro).
   const [searchParams, setSearchParams] = useSearchParams()
@@ -214,37 +226,13 @@ export function ScriptsListPage() {
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.items.map((script) => (
               <li key={script.id}>
-                <Card className="h-full transition-colors hover:border-primary/40">
-                  <Link to={`/scripts/${script.id}`} className="flex h-full flex-col gap-2 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium leading-tight">{script.title}</span>
-                      <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        {labelFor(SCRIPT_STATUSES, script.status)}
-                      </span>
-                    </div>
-
-                    {script.hook_text && (
-                      <p className="line-clamp-2 text-sm text-muted-foreground">
-                        {script.hook_text}
-                      </p>
-                    )}
-
-                    <div className="mt-auto flex flex-wrap items-center gap-2 pt-2 text-xs text-muted-foreground">
-                      {script.brand && <span>{script.brand.name}</span>}
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {script.duration_seconds}s
-                      </span>
-                      <span>{labelFor(PLATFORMS, script.platform)}</span>
-                      {script.hook_score !== null && (
-                        <span className="inline-flex items-center gap-1 text-info">
-                          <Gauge className="h-3 w-3" />
-                          {script.hook_score}
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                </Card>
+                <ScriptCard
+                  script={script}
+                  canArchive={canArchive}
+                  canDelete={canDelete}
+                  onArchive={(target) => archive.mutate(target.id)}
+                  onDelete={setPendingDelete}
+                />
               </li>
             ))}
           </ul>
@@ -279,6 +267,17 @@ export function ScriptsListPage() {
           </div>
         </>
       )}
+
+      <DeleteScriptDialog
+        scriptId={pendingDelete?.id ?? null}
+        title={pendingDelete?.title ?? ''}
+        isDeleting={remove.isPending}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return
+          remove.mutate(pendingDelete.id, { onSettled: () => setPendingDelete(null) })
+        }}
+      />
     </div>
   )
 }

@@ -304,3 +304,104 @@ export async function listScripts({
     pageSize,
   }
 }
+
+/**
+ * Erro de permissão detectado pelo número de linhas afetadas.
+ *
+ * A RLS do Postgres não recusa uma operação proibida: ela simplesmente não
+ * encontra a linha. Um delete barrado volta sem erro e com zero linhas, o que
+ * o cliente leria como sucesso. Esta classe existe para transformar esse
+ * silêncio em mensagem.
+ */
+export class NotAllowedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'NotAllowedError'
+  }
+}
+
+export interface ScriptImpact {
+  scenes: number
+  versions: number
+  /** Roteiros que são variações deste e vão perder o vínculo com ele. */
+  variations: number
+}
+
+/**
+ * O que se perde ao excluir. Serve para o diálogo dizer números reais em vez
+ * de um "tem certeza?" que não informa nada.
+ */
+export async function getScriptImpact(id: string): Promise<ScriptImpact> {
+  const [scenes, versions, variations] = await Promise.all([
+    supabase
+      .from('script_scenes')
+      .select('id', { count: 'exact', head: true })
+      .eq('script_id', id),
+    supabase
+      .from('script_versions')
+      .select('id', { count: 'exact', head: true })
+      .eq('script_id', id),
+    supabase
+      .from('script_variations')
+      .select('id', { count: 'exact', head: true })
+      .eq('parent_script_id', id),
+  ])
+
+  if (scenes.error) throw scenes.error
+  if (versions.error) throw versions.error
+  if (variations.error) throw variations.error
+
+  return {
+    scenes: scenes.count ?? 0,
+    versions: versions.count ?? 0,
+    variations: variations.count ?? 0,
+  }
+}
+
+/**
+ * Exclui de vez. As cenas, as versões e os vínculos de variação vão junto por
+ * cascata (migrations 0005 e 0006).
+ *
+ * O .select('id') não é enfeite: é ele que revela quantas linhas saíram. Sem
+ * isso, um editor sem permissão veria o toast de sucesso e o roteiro continuaria
+ * na lista depois de recarregar.
+ */
+export async function deleteScript(id: string): Promise<void> {
+  const { data, error } = await supabase.from('scripts').delete().eq('id', id).select('id')
+  if (error) throw error
+  if (!data || data.length === 0) {
+    throw new NotAllowedError(
+      'Você não tem permissão para excluir roteiros neste workspace. Só owner e admin podem.',
+    )
+  }
+}
+
+/**
+ * Arquiva devolvendo o status anterior, para o "Desfazer" saber ao que voltar.
+ *
+ * Sem devolver o anterior, desfazer só conseguiria chutar um status — e um
+ * roteiro que estava em 'gravacao' voltaria como 'roteiro', desfazendo mais do
+ * que o usuário pediu.
+ */
+export async function archiveScript(id: string): Promise<Script['status']> {
+  const { data: current, error: readError } = await supabase
+    .from('scripts')
+    .select('status')
+    .eq('id', id)
+    .single()
+
+  if (readError) throw readError
+
+  const { data, error } = await supabase
+    .from('scripts')
+    .update({ status: 'arquivado' })
+    .eq('id', id)
+    .select('id')
+
+  if (error) throw error
+  if (!data || data.length === 0) {
+    throw new NotAllowedError('Você não tem permissão para arquivar roteiros neste workspace.')
+  }
+
+  return current.status
+}
