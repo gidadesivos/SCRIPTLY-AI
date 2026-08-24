@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { FileText, LayoutDashboard, Package, Settings, Sparkles, Wand2 } from 'lucide-react'
+import { FileText, LayoutDashboard, Network, Package, Settings, Sparkles, Wand2 } from 'lucide-react'
 
 export interface NavItem {
   label: string
@@ -18,5 +18,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Roteiros', href: '/scripts', icon: FileText },
   { label: 'Brand Brain', href: '/brands', icon: Sparkles },
   { label: 'Produtos', href: '/products', icon: Package },
+  { label: 'Campanhas', href: '/campanhas', icon: Network },
   { label: 'Configurações', href: '/settings', icon: Settings },
 ]

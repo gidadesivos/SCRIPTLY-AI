@@ -6,6 +6,7 @@
 export type MemberRole = 'owner' | 'admin' | 'editor' | 'viewer'
 export type ResourceStatus = 'active' | 'archived'
 export type WorkspacePlan = 'free' | 'starter' | 'pro' | 'agency' | 'unlimited'
+export type CampaignNodeType = 'campanha' | 'conjunto' | 'anuncio'
 
 export interface FaqEntry {
   question: string
@@ -260,6 +261,85 @@ export interface Database {
         }
         Relationships: []
       }
+      campaign_plans: {
+        Row: {
+          id: string
+          workspace_id: string
+          brand_id: string
+          name: string
+          description: string
+          objective: string
+          status: ResourceStatus
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          brand_id: string
+          name: string
+          description?: string
+          objective?: string
+          status?: ResourceStatus
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          description?: string
+          objective?: string
+          status?: ResourceStatus
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      campaign_nodes: {
+        Row: {
+          id: string
+          workspace_id: string
+          plan_id: string
+          parent_id: string | null
+          type: CampaignNodeType
+          label: string
+          // jsonb: o formato de verdade está nos schemas Zod de
+          // features/campaigns/types.ts, por tipo de nó.
+          data: unknown
+          position_x: number
+          position_y: number
+          order_index: number
+          script_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          plan_id: string
+          parent_id?: string | null
+          type: CampaignNodeType
+          label?: string
+          data?: unknown
+          position_x?: number
+          position_y?: number
+          order_index?: number
+          script_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          parent_id?: string | null
+          label?: string
+          data?: unknown
+          position_x?: number
+          position_y?: number
+          order_index?: number
+          script_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       plan_limits: {
         Row: {
           plan: WorkspacePlan
@@ -429,6 +509,7 @@ export interface Database {
       theme_preference: 'light' | 'dark' | 'system'
       resource_status: ResourceStatus
       workspace_plan: WorkspacePlan
+      campaign_node_type: CampaignNodeType
     }
     CompositeTypes: Record<string, never>
   }

@@ -41,6 +41,24 @@ const SettingsPage = lazy(() =>
   import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
 
+/**
+ * O planejador tem shell próprio: barra superior no lugar da lateral, canvas
+ * ocupando a tela. Fica sob o mesmo ProtectedRoute — é outro produto na tela,
+ * não outra conta.
+ *
+ * O canvas traz o @xyflow/react junto, e é por isso que ele é lazy: quem nunca
+ * abrir /campanhas não baixa nada disso.
+ */
+const CampaignsShell = lazy(() =>
+  import('@/features/campaigns/CampaignsShell').then((m) => ({ default: m.CampaignsShell })),
+)
+const PlansListPage = lazy(() =>
+  import('@/features/campaigns/PlansListPage').then((m) => ({ default: m.PlansListPage })),
+)
+const PlanBoardPage = lazy(() =>
+  import('@/features/campaigns/PlanBoardPage').then((m) => ({ default: m.PlanBoardPage })),
+)
+
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
   { path: '/login', element: <LoginPage /> },
@@ -62,6 +80,14 @@ export const router = createBrowserRouter([
           { path: '/products/new', element: <ProductEditorPage /> },
           { path: '/products/:productId', element: <ProductEditorPage /> },
           { path: '/settings', element: <SettingsPage /> },
+        ],
+      },
+      {
+        path: '/campanhas',
+        element: <CampaignsShell />,
+        children: [
+          { index: true, element: <PlansListPage /> },
+          { path: ':planId', element: <PlanBoardPage /> },
         ],
       },
     ],
