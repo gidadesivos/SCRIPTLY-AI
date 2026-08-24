@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { FileText, Layers, Megaphone, Plus, Target, Trash2, TriangleAlert } from 'lucide-react'
+import { FileText, Layers, Megaphone, Play, Plus, Target, Trash2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { labelFor } from '@/config/options'
 import {
@@ -21,6 +21,7 @@ export interface CampaignNodePayload extends Record<string, unknown> {
   budget: string | null
   issues: string[]
   hasScript: boolean
+  media: { kind: string; embedUrl: string } | null
   onAddChild: (id: string) => void
   onDelete: (id: string) => void
   [key: string]: unknown
@@ -84,14 +85,42 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
         selected ? cn('shadow-md ring-2', style.ring) : 'hover:shadow-md',
       )}
     >
+      {/*
+        Dois pares de conectores, com significados diferentes:
+
+        - em cima e embaixo, ESTRUTURA. Arrastar daqui move o nó de pai, e só
+          entre níveis que o Meta aceita. É a árvore que vira campanha.
+        - nas laterais, ANOTAÇÃO. Qualquer nó com qualquer nó, em qualquer
+          direção, para registrar relação que não cabe na hierarquia.
+
+        Misturar os dois num conector só tornaria impossível saber, ao soltar,
+        se o usuário quis mover ou anotar.
+      */}
       {payload.type !== 'campanha' && (
         <Handle
+          id="parent"
           type="target"
           position={Position.Top}
-          className="!h-2 !w-2 !border-0"
+          className="!h-2.5 !w-2.5 !border-0"
           style={{ background: style.hex }}
+          title="Conectar a uma campanha para mover este nó"
         />
       )}
+
+      <Handle
+        id="link-in"
+        type="target"
+        position={Position.Left}
+        className="!h-2 !w-2 !border !border-dashed !border-muted-foreground !bg-card"
+        title="Receber uma ligação de anotação"
+      />
+      <Handle
+        id="link-out"
+        type="source"
+        position={Position.Right}
+        className="!h-2 !w-2 !border !border-dashed !border-muted-foreground !bg-card"
+        title="Ligar a outro nó (anotação, qualquer direção)"
+      />
 
       <div className={cn('flex items-center gap-1.5 px-3 py-1.5', style.band)}>
         <Icon className={cn('h-3.5 w-3.5 shrink-0', style.text)} />
@@ -131,6 +160,10 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
               </span>
             ))}
           </div>
+        )}
+
+        {payload.media?.embedUrl && (
+          <MediaThumb media={payload.media} />
         )}
 
         {payload.hasScript && (
@@ -186,13 +219,44 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
 
       {childType && (
         <Handle
+          id="child"
           type="source"
           position={Position.Bottom}
-          className="!h-2 !w-2 !border-0"
+          className="!h-2.5 !w-2.5 !border-0"
           style={{ background: style.hex }}
+          title={`Conectar a um ${NODE_LABELS[childType].toLowerCase()} para trazê-lo para cá`}
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Miniatura do criativo dentro do nó.
+ *
+ * Imagem direta entra como <img>. Vídeo e Drive não: um <video> autoplay em
+ * cada nó de um plano com vinte anúncios derrubaria a página, e o iframe do
+ * Drive não pode ser miniatura porque cada um carrega o player inteiro do
+ * Google. Para esses, um selo dizendo que existe criativo — o preview de
+ * verdade fica no painel lateral, um de cada vez.
+ */
+function MediaThumb({ media }: { media: { kind: string; embedUrl: string } }) {
+  if (media.kind === 'image' && !media.embedUrl.includes('drive.google.com')) {
+    return (
+      <img
+        src={media.embedUrl}
+        alt=""
+        loading="lazy"
+        className="h-20 w-full rounded border border-border object-cover"
+      />
+    )
+  }
+
+  return (
+    <span className="inline-flex w-fit items-center gap-1 rounded bg-info/10 px-1.5 py-0.5 text-[11px] text-info">
+      <Play className="h-3 w-3" />
+      {media.kind === 'image' ? 'Imagem anexada' : 'Criativo anexado'}
+    </span>
   )
 }
 

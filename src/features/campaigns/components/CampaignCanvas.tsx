@@ -1,11 +1,13 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import {
   Background,
   Controls,
   MiniMap,
   ReactFlow,
   useNodesState,
+  type Connection,
   type Edge,
+  type EdgeMouseHandler,
   type Node,
   type NodeProps,
 } from '@xyflow/react'
@@ -18,39 +20,46 @@ import {
 } from '@/features/campaigns/components/CampaignNodeCard'
 import { autoLayout, resolvePosition } from '@/features/campaigns/layout'
 import { issuesFor } from '@/features/campaigns/validation'
-import type { CampaignNode } from '@/features/campaigns/types'
+import { resolveMedia } from '@/features/campaigns/media'
+import { ALLOWED_CHILD, type CampaignLink, type CampaignNode } from '@/features/campaigns/types'
 import { useTheme } from '@/features/settings/hooks/useTheme'
 
 interface CampaignCanvasProps {
   nodes: CampaignNode[]
+  links: CampaignLink[]
   selectedId: string | null
   onSelect: (id: string | null) => void
   onAddChild: (parentId: string) => void
   onDelete: (id: string) => void
   onMove: (positions: Array<{ id: string; position_x: number; position_y: number }>) => void
+  /** Arrasto entre conectores de estrutura: move o nó para outro pai. */
+  onReparent: (childId: string, newParentId: string) => void
+  /** Arrasto entre conectores laterais: cria anotação. */
+  onLink: (sourceId: string, targetId: string) => void
+  onUnlink: (linkId: string) => void
+  /** Sinaliza que o arrasto não formou uma estrutura válida. */
+  onInvalidConnection: (message: string) => void
 }
 
 const nodeTypes = { campaign: CampaignNodeCard as React.ComponentType<NodeProps> }
 
+/** Prefixo que distingue anotação de estrutura no id da aresta. */
+const LINK_PREFIX = 'link:'
+
 export function CampaignCanvas({
   nodes,
+  links,
   selectedId,
   onSelect,
   onAddChild,
   onDelete,
   onMove,
+  onReparent,
+  onLink,
+  onUnlink,
+  onInvalidConnection,
 }: CampaignCanvasProps) {
   const auto = useMemo(() => autoLayout(nodes), [nodes])
-
-  /**
-   * Os controles e o minimapa vêm do React Flow com estilo próprio, que não
-   * segue o tema do app: no escuro ficavam painéis brancos com ícones
-   * invisíveis. colorMode é o que faz a biblioteca trocar as próprias
-   * variáveis de cor.
-   *
-   * Vai o tema RESOLVIDO, não o escolhido: 'system' precisa virar light ou dark
-   * para a biblioteca entender.
-   */
   const { resolvedTheme } = useTheme()
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<Node<CampaignNodePayload>>([])
@@ -58,65 +67,121 @@ export function CampaignCanvas({
   /**
    * Ressincroniza com o servidor SEM mexer em quem já está na tela.
    *
-   * A versão anterior remontava todos os nós, posição inclusive, sempre que o
-   * componente recebia props novas. Como onAddChild e onDelete são recriados a
-   * cada render do pai, isso acontecia o tempo todo — e no fim de um arrasto,
-   * quando mutations.move.mutate() re-renderiza a página, o nó era jogado de
-   * volta para a posição antiga. A posição chegava a ser salva no banco; o que
-   * o usuário via era o nó grudado no lugar, como se não desse para mover.
-   *
-   * Agora a posição de um nó que já está no canvas vence: só nó novo é
-   * posicionado, pelo layout automático.
+   * A posição de um nó que já está no canvas vence: remontar tudo a cada render
+   * fazia o nó voltar ao lugar no fim do arrasto. Só nó novo é posicionado,
+   * pelo layout automático.
    */
   useEffect(() => {
     setFlowNodes((current) => {
       const onScreen = new Map(current.map((node) => [node.id, node]))
 
-      return nodes.map((node) => ({
-        id: node.id,
-        type: 'campaign',
-        position: onScreen.get(node.id)?.position ?? resolvePosition(node, auto),
-        selected: node.id === selectedId,
-        data: {
-          type: node.type,
-          label: node.label,
-          ...summarize(node.type, node.data as Record<string, unknown>),
-          issues: issuesFor(node, nodes),
-          hasScript: node.script_id !== null,
-          onAddChild,
-          onDelete,
-        },
-      }))
+      return nodes.map((node) => {
+        const media = resolveMedia(node.media_url, node.media_kind)
+
+        return {
+          id: node.id,
+          type: 'campaign',
+          position: onScreen.get(node.id)?.position ?? resolvePosition(node, auto),
+          selected: node.id === selectedId,
+          data: {
+            type: node.type,
+            label: node.label,
+            ...summarize(node.type, node.data as Record<string, unknown>),
+            issues: issuesFor(node, nodes),
+            hasScript: node.script_id !== null,
+            media: media.embedUrl ? { kind: media.kind, embedUrl: media.embedUrl } : null,
+            onAddChild,
+            onDelete,
+          },
+        }
+      })
     })
   }, [nodes, auto, selectedId, onAddChild, onDelete, setFlowNodes])
 
-  /**
-   * As arestas saem de parent_id, não de um estado editável.
-   *
-   * Deixar o usuário ligar nós à mão permitiria pendurar um anúncio direto na
-   * campanha — estrutura que o Meta recusa. Quem cria a ligação é o botão
-   * "adicionar dentro", que já sabe o tipo permitido.
-   */
   const edges = useMemo<Edge[]>(() => {
     const byId = new Map(nodes.map((node) => [node.id, node]))
 
-    return nodes
+    // Estrutura: sai de parent_id, cor do nível de ORIGEM, para dar para seguir
+    // uma linha para baixo sem chegar até o nó.
+    const structural: Edge[] = nodes
       .filter((node) => node.parent_id !== null)
       .map((node) => {
-        // Cor do nível de ORIGEM: seguir uma linha para baixo mostra de onde
-        // ela saiu sem precisar chegar até o nó.
         const parent = byId.get(node.parent_id as string)
-        const color = parent ? LEVEL_STYLES[parent.type].hex : undefined
-
         return {
           id: `${node.parent_id}-${node.id}`,
           source: node.parent_id as string,
           target: node.id,
+          sourceHandle: 'child',
+          targetHandle: 'parent',
           type: 'smoothstep',
-          style: { stroke: color, strokeWidth: 2 },
+          style: { stroke: parent ? LEVEL_STYLES[parent.type].hex : undefined, strokeWidth: 2 },
         }
       })
-  }, [nodes])
+
+    // Anotação: tracejada e cinza, para não competir com a estrutura. Quem bate
+    // o olho precisa ver a árvore primeiro.
+    const annotations: Edge[] = links.map((link) => ({
+      id: `${LINK_PREFIX}${link.id}`,
+      source: link.source_id,
+      target: link.target_id,
+      sourceHandle: 'link-out',
+      targetHandle: 'link-in',
+      type: 'bezier',
+      label: link.label || undefined,
+      animated: true,
+      style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5, strokeDasharray: '5 4' },
+      labelStyle: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' },
+    }))
+
+    return [...structural, ...annotations]
+  }, [nodes, links])
+
+  /**
+   * Um arrasto só pode significar duas coisas, e o conector usado diz qual.
+   *
+   * Sem essa separação, soltar uma linha de uma campanha num conjunto seria
+   * ambíguo: mover o conjunto para esta campanha, ou anotar que um depende do
+   * outro? Aqui o conector de baixo move, o da lateral anota.
+   */
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return
+      if (connection.source === connection.target) return
+
+      const isAnnotation =
+        connection.sourceHandle === 'link-out' || connection.targetHandle === 'link-in'
+
+      if (isAnnotation) {
+        onLink(connection.source, connection.target)
+        return
+      }
+
+      const parent = nodes.find((node) => node.id === connection.source)
+      const child = nodes.find((node) => node.id === connection.target)
+      if (!parent || !child) return
+
+      if (ALLOWED_CHILD[parent.type] !== child.type) {
+        onInvalidConnection(
+          `Um ${child.type} não pode ficar dentro de um ${parent.type}. Use os conectores das laterais para apenas anotar a relação.`,
+        )
+        return
+      }
+
+      if (child.parent_id === parent.id) return
+      onReparent(child.id, parent.id)
+    },
+    [nodes, onLink, onReparent, onInvalidConnection],
+  )
+
+  /** Clicar numa anotação apaga: é o gesto que as pessoas tentam primeiro. */
+  const handleEdgeClick = useCallback<EdgeMouseHandler>(
+    (_event, edge) => {
+      if (edge.id.startsWith(LINK_PREFIX)) {
+        onUnlink(edge.id.slice(LINK_PREFIX.length))
+      }
+    },
+    [onUnlink],
+  )
 
   return (
     <ReactFlow
@@ -124,8 +189,6 @@ export function CampaignCanvas({
       edges={edges}
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
-      // onNodeDragStop, e não onNodesChange: aqui a posição final já está
-      // resolvida, e persiste uma vez por arrasto em vez de por quadro.
       onNodeDragStop={(_, node, dragged) => {
         const moved = (dragged.length > 0 ? dragged : [node]).map((n) => ({
           id: n.id,
@@ -134,10 +197,10 @@ export function CampaignCanvas({
         }))
         onMove(moved)
       }}
+      onConnect={handleConnect}
+      onEdgeClick={handleEdgeClick}
       onNodeClick={(_, node) => onSelect(node.id)}
       onPaneClick={() => onSelect(null)}
-      // Sem conexão manual: a hierarquia vem do botão de adicionar.
-      nodesConnectable={false}
       fitView
       fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
       minZoom={0.2}
@@ -151,8 +214,6 @@ export function CampaignCanvas({
         pannable
         zoomable
         className="hidden md:block"
-        // Sem cor por nível o minimapa vira um borrão cinza e não ajuda a se
-        // localizar num plano grande.
         nodeColor={(node) => LEVEL_STYLES[(node.data as CampaignNodePayload).type].hex}
         nodeStrokeWidth={0}
         maskColor="hsl(var(--muted) / 0.6)"

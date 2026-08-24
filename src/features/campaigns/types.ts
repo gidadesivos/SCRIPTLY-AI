@@ -92,6 +92,23 @@ export interface CampaignPlan {
   updated_at: string
 }
 
+/**
+ * Ligação de anotação entre dois nós — qualquer direção, qualquer par.
+ *
+ * Não é estrutura: a árvore (parent_id) é o que vira campanha no Meta. Isto
+ * registra relação que existe na cabeça de quem planeja e não cabe na
+ * hierarquia: "testa contra", "entra depois de", "mesmo criativo".
+ */
+export interface CampaignLink {
+  id: string
+  plan_id: string
+  source_id: string
+  target_id: string
+  label: string
+}
+
+export type MediaKind = 'video' | 'image' | ''
+
 export interface CampaignNode {
   id: string
   workspace_id: string
@@ -104,4 +121,6 @@ export interface CampaignNode {
   position_y: number
   order_index: number
   script_id: string | null
+  media_url: string
+  media_kind: MediaKind
 }

@@ -12,6 +12,7 @@ export const PROMPT_VERSIONS = {
   generateScript: 'SCRIPT_GENERATOR_V1',
   rewriteSection: 'SURGICAL_EDITOR_V1',
   generateVariations: 'VARIATION_GENERATOR_V1',
+  generateAdCopy: 'AD_COPY_V1',
 } as const
 
 /** Base de todo prompt de conteúdo (§7.1). */
@@ -187,4 +188,40 @@ Regras:
 - Mantenha a mesma oferta, a mesma promessa e a mesma duração-alvo.
 - "hypothesis" diz o que essa variação testa em relação ao original.
 - Devolva hook e locução de cada cena; mantenha a mesma quantidade de cenas.`
+}
+
+/**
+ * Copy de anúncio do Meta a partir de uma descrição curta.
+ *
+ * Os limites de caracteres não são invenção: são os pontos em que o Meta corta
+ * com reticências no feed. Passar deles não dá erro na plataforma — dá um
+ * anúncio com a frase cortada no meio, que é pior.
+ */
+export function generateAdCopyPrompt(
+  briefing: string,
+  format: string,
+  cta: string,
+  scriptContext: string,
+  blocks: ContextBlocks,
+): string {
+  return `${contextSection(blocks)}Escreva a copy de UM anúncio do Meta Ads.
+
+<user_input>
+Do que se trata: ${briefing}
+Formato: ${format || 'não definido'}
+Botão pretendido: ${cta || 'não definido'}
+</user_input>
+${
+  scriptContext
+    ? `\n<script_data>\nO criativo deste anúncio é este roteiro. A copy tem que conversar com ele, sem repetir a locução:\n${scriptContext}\n</script_data>\n`
+    : ''
+}
+Regras:
+- "primary_text" é o texto acima do criativo. O Meta corta por volta de 125 caracteres no feed: a primeira frase precisa funcionar sozinha. Pode ter mais que isso, mas o essencial vem antes do corte.
+- "headline" é o título abaixo do criativo. Até 40 caracteres. É a promessa, não o nome da empresa.
+- "description" é a linha de apoio. Até 30 caracteres. Deixe vazia se não acrescentar nada — linha fraca ocupa espaço e não converte.
+- "cta_suggestion" é um destes valores, o que melhor servir: shop_now, learn_more, sign_up, send_message, whatsapp, book_now, get_offer, contact_us, download, subscribe.
+- Nada de "clique no link da bio" nem de mecânica de orgânico: isto é anúncio pago.
+- NUNCA invente preço, prazo, desconto, garantia, estatística ou resultado que não esteja no contexto acima. Faltou dado? Use placeholder entre colchetes: [inserir prazo de entrega].
+- Respeite as palavras proibidas da marca.`
 }

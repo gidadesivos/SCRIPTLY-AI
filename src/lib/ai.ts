@@ -211,3 +211,24 @@ export function generateVariations(
     count,
   })
 }
+
+export interface AdCopy {
+  primary_text: string
+  headline: string
+  description: string
+  cta_suggestion: string
+  rationale: string
+}
+
+/**
+ * Copy de anúncio do Meta a partir de uma descrição curta.
+ *
+ * scriptContext é a locução do roteiro vinculado, quando existe: é o que faz a
+ * copy conversar com o vídeo em vez de repetir a locução.
+ */
+export function generateAdCopy(
+  ref: ContextRef,
+  input: { briefing: string; format: string; cta: string; scriptContext: string },
+) {
+  return invoke<AdCopy>({ operation: 'generateAdCopy', ...ref, ...input })
+}

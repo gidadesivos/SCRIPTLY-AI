@@ -41,6 +41,7 @@ export type OperationName =
   | 'generateScript'
   | 'rewriteSection'
   | 'generateVariations'
+  | 'generateAdCopy'
 
 /**
  * Temperatura por operação: extração precisa ser literal, criação precisa variar.
@@ -54,6 +55,10 @@ export const TEMPERATURE: Record<OperationName, number> = {
   // Cirúrgico: baixa temperatura, para alterar o alvo sem reinventar o resto.
   rewriteSection: 0.5,
   generateVariations: 0.9,
+  // Copy de anúncio precisa variar para render, mas sem inventar: a temperatura
+  // é alta o suficiente para não sair genérico e baixa o suficiente para o
+  // modelo continuar preso ao que o Brand Brain forneceu.
+  generateAdCopy: 0.8,
 }
 
 export const MAX_OUTPUT_TOKENS: Record<OperationName, number> = {
@@ -64,6 +69,7 @@ export const MAX_OUTPUT_TOKENS: Record<OperationName, number> = {
   generateScript: 8192,
   rewriteSection: 1024,
   generateVariations: 8192,
+  generateAdCopy: 2048,
 }
 
 /** Anti-repetição (§7.4): quantos títulos/textos recentes enviar como "evite". */
@@ -93,4 +99,5 @@ export const THINKING_LEVEL: Record<OperationName, 'low' | undefined> = {
   generateScript: undefined,
   rewriteSection: 'low',
   generateVariations: undefined,
+  generateAdCopy: undefined,
 }

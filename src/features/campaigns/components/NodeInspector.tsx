@@ -21,15 +21,22 @@ import {
   META_PLACEMENT_MODES,
 } from '@/features/campaigns/meta-options'
 import { ScriptPicker } from '@/features/campaigns/components/ScriptPicker'
+import { MediaField } from '@/features/campaigns/components/MediaField'
+import { AdCopyGenerator } from '@/features/campaigns/components/AdCopyGenerator'
+import type { MediaKind } from '@/features/campaigns/types'
 import { NODE_LABELS, type CampaignNode } from '@/features/campaigns/types'
 import type { Option } from '@/config/options'
 
 interface NodeInspectorProps {
   node: CampaignNode
+  /** Locução do roteiro vinculado, para a IA escrever conversando com o vídeo. */
+  scriptContext: string
   onChange: (patch: {
     label?: string
     data?: Record<string, unknown>
     script_id?: string | null
+    media_url?: string
+    media_kind?: MediaKind
   }) => void
 }
 
@@ -38,7 +45,7 @@ interface NodeInspectorProps {
  * naquele nível do Meta — jogar todos juntos seria pedir para preencher
  * público num anúncio, coisa que a plataforma não tem.
  */
-export function NodeInspector({ node, onChange }: NodeInspectorProps) {
+export function NodeInspector({ node, scriptContext, onChange }: NodeInspectorProps) {
   const data = node.data as Record<string, unknown>
   const set = (key: string, value: unknown) => onChange({ data: { ...data, [key]: value } })
 
@@ -186,6 +193,32 @@ export function NodeInspector({ node, onChange }: NodeInspectorProps) {
             scriptId={node.script_id}
             onChange={(scriptId) => onChange({ script_id: scriptId })}
           />
+
+          <MediaField
+            url={node.media_url}
+            kind={node.media_kind}
+            onChange={(patch) => onChange(patch)}
+          />
+
+          <AdCopyGenerator
+            format={String(data.format ?? '')}
+            cta={String(data.cta ?? '')}
+            scriptContext={scriptContext}
+            onApply={(copy) =>
+              onChange({
+                data: {
+                  ...data,
+                  primary_text: copy.primary_text,
+                  headline: copy.headline,
+                  description: copy.description || data.description,
+                  // Só troca o botão se ainda não houver escolha: a sugestão da
+                  // IA não deve desfazer uma decisão já tomada.
+                  cta: data.cta || copy.cta_suggestion,
+                },
+              })
+            }
+          />
+
           <Picker
             label="Formato"
             options={META_AD_FORMATS}

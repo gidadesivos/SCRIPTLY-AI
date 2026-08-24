@@ -310,6 +310,8 @@ export interface Database {
           position_y: number
           order_index: number
           script_id: string | null
+          media_url: string
+          media_kind: string
           created_at: string
           updated_at: string
         }
@@ -325,6 +327,8 @@ export interface Database {
           position_y?: number
           order_index?: number
           script_id?: string | null
+          media_url?: string
+          media_kind?: string
           created_at?: string
           updated_at?: string
         }
@@ -336,7 +340,33 @@ export interface Database {
           position_y?: number
           order_index?: number
           script_id?: string | null
+          media_url?: string
+          media_kind?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      campaign_links: {
+        Row: {
+          id: string
+          workspace_id: string
+          plan_id: string
+          source_id: string
+          target_id: string
+          label: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          plan_id: string
+          source_id: string
+          target_id: string
+          label?: string
+          created_at?: string
+        }
+        Update: {
+          label?: string
         }
         Relationships: []
       }

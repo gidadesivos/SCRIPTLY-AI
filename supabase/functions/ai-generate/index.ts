@@ -12,11 +12,14 @@ import {
   generateAnglesPrompt,
   generateHooksPrompt,
   generateScriptPrompt,
+  generateAdCopyPrompt,
   generateVariationsPrompt,
   parseFreeformIdeaPrompt,
   rewriteSectionPrompt,
 } from '../_shared/prompts.ts'
 import {
+  adCopyGeminiSchema,
+  adCopyZodSchema,
   anglesGeminiSchema,
   anglesZodSchema,
   briefGeminiSchema,
@@ -119,6 +122,17 @@ const requestSchema = z.discriminatedUnion('operation', [
       scenes: z.array(z.string()),
     }),
     count: z.number().int().min(1).max(3).default(2),
+  }),
+  z.object({
+    operation: z.literal('generateAdCopy'),
+    workspaceId: z.string().uuid(),
+    brandId: z.string().uuid(),
+    productId: z.string().uuid().nullish(),
+    briefing: z.string().min(3).max(1000),
+    format: z.string().max(50).default(''),
+    cta: z.string().max(50).default(''),
+    // Locução do roteiro vinculado, quando houver. Truncada no cliente.
+    scriptContext: z.string().max(4000).default(''),
   }),
 ])
 
@@ -271,6 +285,20 @@ Deno.serve(async (req) => {
             userPrompt: generateVariationsPrompt(body.script, body.count, blocks),
             geminiSchema: variationsGeminiSchema,
             zodSchema: variationsZodSchema,
+          })
+        case 'generateAdCopy':
+          return runOperation({
+            apiKey: GEMINI_API_KEY,
+            operation: 'generateAdCopy',
+            userPrompt: generateAdCopyPrompt(
+              body.briefing,
+              body.format,
+              body.cta,
+              body.scriptContext,
+              blocks,
+            ),
+            geminiSchema: adCopyGeminiSchema,
+            zodSchema: adCopyZodSchema,
           })
       }
     })()

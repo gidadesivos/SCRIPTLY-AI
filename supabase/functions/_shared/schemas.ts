@@ -293,3 +293,26 @@ export const variationsZodSchema = z.object({
 })
 
 export type VariationsOutput = z.infer<typeof variationsZodSchema>
+
+// ---------------------------------------------------------- generateAdCopy
+export const adCopyGeminiSchema: GeminiSchema = {
+  type: 'OBJECT',
+  properties: {
+    primary_text: str('Texto acima do criativo'),
+    headline: str('Título, até 40 caracteres'),
+    description: str('Linha de apoio, até 30 caracteres'),
+    cta_suggestion: str('Um dos valores de CTA permitidos'),
+    rationale: str('Por que essa copy funciona para este público'),
+  },
+  required: ['primary_text', 'headline'],
+}
+
+export const adCopyZodSchema = z.object({
+  primary_text: z.string().min(1, 'A IA devolveu o texto principal vazio.'),
+  headline: z.string().min(1, 'A IA devolveu o título vazio.'),
+  description: z.string().default(''),
+  cta_suggestion: z.string().default(''),
+  rationale: z.string().default(''),
+})
+
+export type AdCopyOutput = z.infer<typeof adCopyZodSchema>

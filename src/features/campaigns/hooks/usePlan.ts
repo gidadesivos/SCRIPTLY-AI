@@ -2,13 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { NotAllowedError } from '@/features/scripts/api'
 import {
+  createLink,
   createNode,
   createPlan,
+  deleteLink,
   deleteNode,
   deletePlan,
+  duplicateNodeTree,
   getPlan,
   listPlans,
   renamePlan,
+  reparentNode,
   updateNode,
   updateNodePositions,
   type NodePatch,
@@ -133,5 +137,44 @@ export function useNodeMutations(planId: string) {
     onError: reportCampaignError,
   })
 
-  return { add, patch, remove, move }
+  const reparent = useMutation({
+    mutationFn: ({ childId, parentId }: { childId: string; parentId: string }) =>
+      reparentNode(childId, parentId),
+    onSuccess: invalidate,
+    onError: reportCampaignError,
+  })
+
+  const link = useMutation({
+    mutationFn: (input: { workspaceId: string; sourceId: string; targetId: string }) =>
+      createLink({ ...input, planId }),
+    onSuccess: invalidate,
+    onError: (error) => {
+      // 23505 é a unique (source, target): a ligação já existe, e avisar disso
+      // é mais útil que "erro inesperado".
+      const code = (error as { code?: string }).code
+      if (code === '23505') {
+        toast.info('Esses dois nós já estão ligados.')
+        return
+      }
+      reportCampaignError(error)
+    },
+  })
+
+  const unlink = useMutation({
+    mutationFn: (id: string) => deleteLink(id),
+    onSuccess: invalidate,
+    onError: reportCampaignError,
+  })
+
+  const duplicate = useMutation({
+    mutationFn: ({ nodeId, allNodes }: { nodeId: string; allNodes: CampaignNode[] }) =>
+      duplicateNodeTree(nodeId, allNodes),
+    onSuccess: () => {
+      invalidate()
+      toast.success('Duplicado.')
+    },
+    onError: reportCampaignError,
+  })
+
+  return { add, patch, remove, move, reparent, link, unlink, duplicate }
 }

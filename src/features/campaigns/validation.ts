@@ -96,3 +96,48 @@ export function issuesFor(node: CampaignNode, all: CampaignNode[]): string[] {
 export function countIssues(nodes: CampaignNode[]): number {
   return nodes.reduce((total, node) => total + issuesFor(node, nodes).length, 0)
 }
+
+export interface PlanTotals {
+  campanhas: number
+  conjuntos: number
+  anuncios: number
+  /** Soma dos orçamentos que serão de fato aplicados. */
+  orcamento: number
+  comCriativo: number
+  issues: number
+}
+
+/**
+ * Totais do plano.
+ *
+ * O orçamento não é a soma de tudo que está preenchido: quando a campanha usa
+ * CBO, o valor dos conjuntos é ignorado pelo Meta, e somar os dois daria um
+ * número que não existe. Cada campanha contribui com o que a plataforma vai
+ * mesmo gastar.
+ */
+export function planTotals(nodes: CampaignNode[]): PlanTotals {
+  const value = (node: CampaignNode) =>
+    Number((node.data as Record<string, unknown>).budget_amount ?? 0) || 0
+
+  let orcamento = 0
+  for (const campanha of nodes.filter((node) => node.type === 'campanha')) {
+    const conjuntos = nodes.filter((node) => node.parent_id === campanha.id)
+    const level = (campanha.data as Record<string, unknown>).budget_level
+
+    orcamento +=
+      level === 'campaign'
+        ? value(campanha)
+        : conjuntos.reduce((sum, conjunto) => sum + value(conjunto), 0)
+  }
+
+  const anuncios = nodes.filter((node) => node.type === 'anuncio')
+
+  return {
+    campanhas: nodes.filter((node) => node.type === 'campanha').length,
+    conjuntos: nodes.filter((node) => node.type === 'conjunto').length,
+    anuncios: anuncios.length,
+    orcamento,
+    comCriativo: anuncios.filter((node) => node.script_id || node.media_url).length,
+    issues: countIssues(nodes),
+  }
+}
