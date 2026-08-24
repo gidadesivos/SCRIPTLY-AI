@@ -34,11 +34,13 @@ export interface AuthContext {
 }
 
 export class AuthError extends Error {
-  constructor(
-    message: string,
-    readonly code: 'unauthorized' | 'forbidden',
-  ) {
+  // Campo explícito, e não parameter property: o Deno das Edge Functions
+  // recusa `constructor(readonly code: ...)` e o deploy quebra.
+  code: 'unauthorized' | 'forbidden'
+
+  constructor(message: string, code: 'unauthorized' | 'forbidden') {
     super(message)
+    this.code = code
   }
 }
 

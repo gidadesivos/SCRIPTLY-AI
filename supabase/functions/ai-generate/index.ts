@@ -158,24 +158,41 @@ Deno.serve(async (req) => {
   const { userId, workspaceId, admin } = auth
   const promptVersion = PROMPT_VERSIONS[body.operation]
 
-  const verdict = await checkRateLimit(admin, userId, workspaceId)
+  let verdict
+  try {
+    verdict = await checkRateLimit(admin, workspaceId)
+  } catch (error) {
+    // Plano ilegível é erro de instalação, não do usuário: não dá para decidir
+    // se ele pode gerar, e liberar por padrão seria abrir a cota de todo mundo.
+    console.error('[ai-generate] falha ao ler o plano:', (error as Error).message)
+    return errorResponse('unexpected', 500)
+  }
+
   if (!verdict.allowed) {
-    await recordGeneration(admin, {
-      workspaceId,
-      userId,
-      generationType: body.operation,
-      promptVersion,
-      model: AI_MODEL,
-      status: 'rate_limited',
-    })
+    inBackground(
+      recordGeneration(admin, {
+        workspaceId,
+        userId,
+        generationType: body.operation,
+        promptVersion,
+        model: AI_MODEL,
+        status: 'rate_limited',
+      }),
+    )
+    // A mensagem nomeia o plano e os números: sem isso o usuário só via
+    // "aguarde um instante" e não tinha como saber o que mudaria isso.
     return jsonResponse(
       {
         error: {
           code: 'rate_limited',
           detail:
-            verdict.scope === 'user'
-              ? 'Você atingiu o limite de gerações por minuto. Aguarde um instante.'
-              : 'O workspace atingiu o limite de gerações por minuto. Aguarde um instante.',
+            verdict.scope === 'month'
+              ? `Você usou as ${verdict.limit} gerações do mês no plano ${verdict.plan.label}. A cota renova no dia 1º.`
+              : `Você atingiu o limite de ${verdict.limit} gerações por minuto do plano ${verdict.plan.label}. Aguarde um instante.`,
+          plan: verdict.plan.plan,
+          planLabel: verdict.plan.label,
+          used: verdict.used,
+          limit: verdict.limit,
           retryAfterSeconds: verdict.retryAfterSeconds,
         },
       },

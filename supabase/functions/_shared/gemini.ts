@@ -27,13 +27,15 @@ export interface GeminiResult {
 }
 
 export class GeminiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number | null,
-    readonly retryable: boolean,
-  ) {
+  // Ver AuthError: parameter property quebra o deploy no Deno.
+  status: number | null
+  retryable: boolean
+
+  constructor(message: string, status: number | null, retryable: boolean) {
     super(message)
     this.name = 'GeminiError'
+    this.status = status
+    this.retryable = retryable
   }
 }
 
@@ -126,7 +128,10 @@ async function callOnce(apiKey: string, options: CallOptions): Promise<GeminiRes
   } catch (error) {
     if (error instanceof GeminiError) throw error
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new GeminiError('Tempo esgotado ao falar com o Gemini.', null, true)
+      // Não retryable: estourar o tempo significa que o modelo está lento, não
+      // que houve uma falha passageira. Tentar de novo só multiplicava a espera
+      // pelo mesmo erro — era o que produzia os 91,8s na telemetria.
+      throw new GeminiError('Tempo esgotado ao falar com o Gemini.', null, false)
     }
     throw new GeminiError((error as Error).message, null, true)
   } finally {
@@ -134,7 +139,7 @@ async function callOnce(apiKey: string, options: CallOptions): Promise<GeminiRes
   }
 }
 
-/** Chama o Gemini com retry exponencial apenas em falhas transitórias. */
+/** Chama o Gemini com retry exponencial apenas em falhas transitórias (429/5xx). */
 export async function callGemini(apiKey: string, options: CallOptions): Promise<GeminiResult> {
   let lastError: GeminiError | null = null
 

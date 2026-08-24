@@ -5,6 +5,7 @@
  */
 export type MemberRole = 'owner' | 'admin' | 'editor' | 'viewer'
 export type ResourceStatus = 'active' | 'archived'
+export type WorkspacePlan = 'free' | 'starter' | 'pro' | 'agency' | 'unlimited'
 
 export interface FaqEntry {
   question: string
@@ -234,6 +235,7 @@ export interface Database {
           id: string
           name: string
           slug: string
+          plan: WorkspacePlan
           created_by: string
           created_at: string
           updated_at: string
@@ -242,6 +244,8 @@ export interface Database {
           id?: string
           name: string
           slug: string
+          // Sem plan: o cliente não escolhe o próprio plano. Um trigger no banco
+          // (migration 0008) recusa qualquer update que mexa nesta coluna.
           created_by: string
           created_at?: string
           updated_at?: string
@@ -254,6 +258,21 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
+      }
+      plan_limits: {
+        Row: {
+          plan: WorkspacePlan
+          label: string
+          description: string
+          /** null = sem limite. */
+          generations_per_minute: number | null
+          generations_per_month: number | null
+          sort_order: number
+        }
+        // Somente leitura pelo cliente: não há policy de escrita.
+        Insert: never
+        Update: never
         Relationships: []
       }
       workspace_members: {
@@ -400,11 +419,16 @@ export interface Database {
         }
         Returns: number
       }
+      workspace_generations_this_month: {
+        Args: { p_workspace_id: string }
+        Returns: number
+      }
     }
     Enums: {
       member_role: MemberRole
       theme_preference: 'light' | 'dark' | 'system'
       resource_status: ResourceStatus
+      workspace_plan: WorkspacePlan
     }
     CompositeTypes: Record<string, never>
   }

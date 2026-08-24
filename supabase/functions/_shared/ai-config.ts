@@ -12,19 +12,26 @@ export const AI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash'
 
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
-export const REQUEST_TIMEOUT_MS = 30_000
+/**
+ * 30s era curto demais e a telemetria mostrou: generateScript levava 66s em
+ * média e completeBrief morria com "Tempo esgotado" em 91,8s — que é o timeout
+ * batendo três vezes com backoff no meio. O usuário esperava um minuto e meio
+ * para receber erro numa chamada que teria dado certo.
+ */
+export const REQUEST_TIMEOUT_MS = 75_000
 
-/** Retry só em 429/5xx/timeout, com backoff exponencial. */
+/** Retry só em 429/5xx, com backoff exponencial. */
 export const MAX_RETRIES = 2
 export const RETRY_BASE_DELAY_MS = 600
 
 /** Uma única tentativa de reparo quando o Zod recusa a saída (§7.2 do pipeline). */
 export const MAX_REPAIR_ATTEMPTS = 1
 
-export const RATE_LIMIT = {
-  perUserPerMinute: 20,
-  perWorkspacePerMinute: 60,
-} as const
+/**
+ * Os limites de uso NÃO ficam aqui. Eles são por plano e moram em plan_limits,
+ * no banco (migration 0008) — ver _shared/rate-limit.ts. Ter uma constante
+ * "RATE_LIMIT" sobrando neste arquivo só faria alguém acreditar nela.
+ */
 
 export type OperationName =
   | 'parseFreeformIdea'

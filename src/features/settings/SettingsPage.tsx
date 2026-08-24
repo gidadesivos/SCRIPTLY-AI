@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useTheme } from '@/features/settings/hooks/useTheme'
 import { Diagnostics } from '@/features/settings/components/Diagnostics'
+import { PlanCard } from '@/features/settings/components/PlanCard'
 import { strings } from '@/i18n/pt-BR'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +41,8 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <PlanCard />
 
       <Card>
         <CardHeader>

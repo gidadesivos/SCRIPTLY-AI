@@ -1,44 +1,142 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
-import { RATE_LIMIT } from './ai-config.ts'
+
+/**
+ * Limites vindos do plano do workspace. null = sem limite.
+ *
+ * Nada aqui é constante no código: os números moram em plan_limits, no banco,
+ * para que a tela de assinatura mostre exatamente o que o rate limit aplica e
+ * mudar um limite não exija deploy desta function.
+ */
+export interface PlanLimits {
+  plan: string
+  label: string
+  generationsPerMinute: number | null
+  generationsPerMonth: number | null
+}
 
 export interface RateLimitVerdict {
   allowed: boolean
-  scope?: 'user' | 'workspace'
+  plan: PlanLimits
+  /** Qual janela estourou. Só vem quando allowed é false. */
+  scope?: 'minute' | 'month'
+  used?: number
+  limit?: number
   retryAfterSeconds?: number
 }
 
+interface PlanRow {
+  plan: string
+  plan_limits: {
+    label: string
+    generations_per_minute: number | null
+    generations_per_month: number | null
+  }
+}
+
+/** Segundos até o primeiro instante do mês que vem, para o Retry-After mensal. */
+function secondsUntilNextMonth(): number {
+  const now = new Date()
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
+  return Math.max(1, Math.ceil((next - now.getTime()) / 1000))
+}
+
+export async function loadPlan(
+  admin: SupabaseClient,
+  workspaceId: string,
+): Promise<PlanLimits> {
+  const { data, error } = await admin
+    .from('workspaces')
+    .select('plan, plan_limits!inner(label, generations_per_minute, generations_per_month)')
+    .eq('id', workspaceId)
+    .single<PlanRow>()
+
+  if (error || !data) {
+    throw new Error(`Não foi possível ler o plano do workspace: ${error?.message ?? 'sem dados'}`)
+  }
+
+  return {
+    plan: data.plan,
+    label: data.plan_limits.label,
+    generationsPerMinute: data.plan_limits.generations_per_minute,
+    generationsPerMonth: data.plan_limits.generations_per_month,
+  }
+}
+
 /**
- * Conta gerações na última janela de 60s (§7.6). Usa ai_generations como fonte:
- * a mesma tabela da telemetria, sem estado extra para manter sincronizado.
+ * Aplica os limites do plano (§7.6). Fonte de contagem: ai_generations, a mesma
+ * tabela da telemetria, sem estado extra para manter sincronizado.
+ *
+ * Duas decisões que valem explicar:
+ *
+ * - O escopo é o workspace, não o usuário. Antes havia também um teto por
+ *   usuário, com um número inventado no código; com plano, o workspace é quem
+ *   tem cota, e quem divide entre os membros é o dono dele.
+ *
+ * - Geração recusada não consome cota. Sem esse filtro, bater no limite
+ *   prolongava o bloqueio: as próprias recusas contavam para o minuto seguinte.
  */
 export async function checkRateLimit(
   admin: SupabaseClient,
-  userId: string,
   workspaceId: string,
 ): Promise<RateLimitVerdict> {
-  const windowStart = new Date(Date.now() - 60_000).toISOString()
+  const plan = await loadPlan(admin, workspaceId)
 
-  const [userCount, workspaceCount] = await Promise.all([
-    admin
-      .from('ai_generations')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('created_at', windowStart),
-    admin
-      .from('ai_generations')
-      .select('id', { count: 'exact', head: true })
-      .eq('workspace_id', workspaceId)
-      .gte('created_at', windowStart),
+  // Plano ilimitado nem consulta: o caminho mais caro do produto é também o
+  // que menos pergunta ao banco.
+  if (plan.generationsPerMinute === null && plan.generationsPerMonth === null) {
+    return { allowed: true, plan }
+  }
+
+  const minuteStart = new Date(Date.now() - 60_000).toISOString()
+  const monthStart = new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1),
+  ).toISOString()
+
+  const [minuteCount, monthCount] = await Promise.all([
+    plan.generationsPerMinute === null
+      ? Promise.resolve({ count: 0 })
+      : admin
+          .from('ai_generations')
+          .select('id', { count: 'exact', head: true })
+          .eq('workspace_id', workspaceId)
+          .neq('status', 'rate_limited')
+          .gte('created_at', minuteStart),
+    plan.generationsPerMonth === null
+      ? Promise.resolve({ count: 0 })
+      : admin
+          .from('ai_generations')
+          .select('id', { count: 'exact', head: true })
+          .eq('workspace_id', workspaceId)
+          .neq('status', 'rate_limited')
+          .gte('created_at', monthStart),
   ])
 
-  if ((userCount.count ?? 0) >= RATE_LIMIT.perUserPerMinute) {
-    return { allowed: false, scope: 'user', retryAfterSeconds: 60 }
-  }
-  if ((workspaceCount.count ?? 0) >= RATE_LIMIT.perWorkspacePerMinute) {
-    return { allowed: false, scope: 'workspace', retryAfterSeconds: 60 }
+  const usedThisMinute = minuteCount.count ?? 0
+  const usedThisMonth = monthCount.count ?? 0
+
+  if (plan.generationsPerMonth !== null && usedThisMonth >= plan.generationsPerMonth) {
+    return {
+      allowed: false,
+      plan,
+      scope: 'month',
+      used: usedThisMonth,
+      limit: plan.generationsPerMonth,
+      retryAfterSeconds: secondsUntilNextMonth(),
+    }
   }
 
-  return { allowed: true }
+  if (plan.generationsPerMinute !== null && usedThisMinute >= plan.generationsPerMinute) {
+    return {
+      allowed: false,
+      plan,
+      scope: 'minute',
+      used: usedThisMinute,
+      limit: plan.generationsPerMinute,
+      retryAfterSeconds: 60,
+    }
+  }
+
+  return { allowed: true, plan }
 }
 
 export interface TelemetryEntry {
