@@ -2,7 +2,7 @@ import { z } from 'npm:zod@3.23.8'
 import { AI_MODEL } from '../_shared/ai-config.ts'
 import { authenticate, AuthError, ConfigError } from '../_shared/auth.ts'
 import { buildContext } from '../_shared/context.ts'
-import { GeminiError } from '../_shared/gemini.ts'
+import { ProviderError, fetchOpenRouterQuota, configuredProviders } from '../_shared/providers/index.ts'
 import { corsHeaders, errorResponse, jsonResponse } from '../_shared/http.ts'
 import { InvalidAiOutputError, runOperation } from '../_shared/pipeline.ts'
 import { checkRateLimit, recordGeneration } from '../_shared/rate-limit.ts'
@@ -33,8 +33,6 @@ import {
   variationsGeminiSchema,
   variationsZodSchema,
 } from '../_shared/schemas.ts'
-
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 
 /**
  * Roda a promessa depois de responder, sem segurar o usuário.
@@ -123,6 +121,18 @@ const requestSchema = z.discriminatedUnion('operation', [
     }),
     count: z.number().int().min(1).max(3).default(2),
   }),
+  /**
+   * Não gera nada: devolve o estado dos provedores.
+   *
+   * Mora nesta function, e não numa nova, porque precisa exatamente da mesma
+   * autenticação e da mesma checagem de workspace — e porque a chave do
+   * OpenRouter não pode sair do servidor (N2). É tratada antes do rate limit:
+   * consultar saldo não consome cota de geração.
+   */
+  z.object({
+    operation: z.literal('providerStatus'),
+    workspaceId: z.string().uuid(),
+  }),
   z.object({
     operation: z.literal('generateAdCopy'),
     workspaceId: z.string().uuid(),
@@ -140,9 +150,15 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return errorResponse('invalid_request', 405)
 
-  if (!GEMINI_API_KEY) {
-    console.error('GEMINI_API_KEY não configurada nos secrets da function.')
-    return errorResponse('ai_unavailable', 503, 'Chave da IA não configurada.')
+  // Basta UM provedor configurado. Antes isto exigia especificamente o Gemini,
+  // o que impediria rodar só com OpenRouter.
+  if (configuredProviders().length === 0) {
+    console.error('Nenhum provedor de IA configurado nos secrets da function.')
+    return errorResponse(
+      'ai_unavailable',
+      503,
+      'Nenhuma chave de IA configurada. Falta GEMINI_API_KEY ou OPENROUTER_API_KEY.',
+    )
   }
 
   let body: z.infer<typeof requestSchema>
@@ -170,6 +186,27 @@ Deno.serve(async (req) => {
   }
 
   const { userId, workspaceId, admin } = auth
+
+  if (body.operation === 'providerStatus') {
+    let quota = null
+    let quotaError: string | null = null
+    try {
+      quota = await fetchOpenRouterQuota()
+    } catch (error) {
+      // Não derruba a resposta: o painel ainda mostra a telemetria própria, que
+      // é a parte que sempre existe.
+      quotaError = (error as Error).message
+    }
+
+    return jsonResponse({
+      data: {
+        providers: configuredProviders().map((provider) => provider.name),
+        openRouter: quota,
+        openRouterError: quotaError,
+      },
+    })
+  }
+
   const promptVersion = PROMPT_VERSIONS[body.operation]
 
   let verdict
@@ -227,7 +264,6 @@ Deno.serve(async (req) => {
       switch (body.operation) {
         case 'parseFreeformIdea':
           return runOperation({
-            apiKey: GEMINI_API_KEY,
             operation: 'parseFreeformIdea',
             userPrompt: parseFreeformIdeaPrompt(body.idea),
             geminiSchema: briefGeminiSchema,
@@ -235,7 +271,6 @@ Deno.serve(async (req) => {
           })
         case 'completeBrief':
           return runOperation({
-            apiKey: GEMINI_API_KEY,
             operation: 'completeBrief',
             userPrompt: completeBriefPrompt(body.brief, blocks),
             geminiSchema: briefGeminiSchema,
@@ -243,7 +278,6 @@ Deno.serve(async (req) => {
           })
         case 'generateAngles':
           return runOperation({
-            apiKey: GEMINI_API_KEY,
             operation: 'generateAngles',
             userPrompt: generateAnglesPrompt(body.brief, blocks),
             geminiSchema: anglesGeminiSchema,
@@ -251,7 +285,6 @@ Deno.serve(async (req) => {
           })
         case 'generateHooks':
           return runOperation({
-            apiKey: GEMINI_API_KEY,
             operation: 'generateHooks',
             userPrompt: generateHooksPrompt(body.brief, body.angle, blocks),
             geminiSchema: hooksGeminiSchema,
@@ -259,7 +292,6 @@ Deno.serve(async (req) => {
           })
         case 'generateScript':
           return runOperation({
-            apiKey: GEMINI_API_KEY,
             operation: 'generateScript',
             userPrompt: generateScriptPrompt(body.brief, body.angle, body.hook, blocks),
             geminiSchema: scriptGeminiSchema,
@@ -267,7 +299,6 @@ Deno.serve(async (req) => {
           })
         case 'rewriteSection':
           return runOperation({
-            apiKey: GEMINI_API_KEY,
             operation: 'rewriteSection',
             userPrompt: rewriteSectionPrompt(
               body.instruction,
@@ -280,7 +311,6 @@ Deno.serve(async (req) => {
           })
         case 'generateVariations':
           return runOperation({
-            apiKey: GEMINI_API_KEY,
             operation: 'generateVariations',
             userPrompt: generateVariationsPrompt(body.script, body.count, blocks),
             geminiSchema: variationsGeminiSchema,
@@ -288,7 +318,6 @@ Deno.serve(async (req) => {
           })
         case 'generateAdCopy':
           return runOperation({
-            apiKey: GEMINI_API_KEY,
             operation: 'generateAdCopy',
             userPrompt: generateAdCopyPrompt(
               body.briefing,
@@ -309,7 +338,10 @@ Deno.serve(async (req) => {
         userId,
         generationType: body.operation,
         promptVersion,
-        model: AI_MODEL,
+        // Modelo e provedor de quem DE FATO respondeu — pode não ser o primeiro
+        // da cadeia. Gravar AI_MODEL aqui esconderia toda troca de provedor.
+        model: outcome.model,
+        provider: outcome.provider,
         status: 'success',
         latencyMs: Date.now() - startedAt,
         inputTokens: outcome.inputTokens,
@@ -320,7 +352,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ data: outcome.data })
   } catch (error) {
     const isInvalidOutput = error instanceof InvalidAiOutputError
-    const isGeminiDown = error instanceof GeminiError
+    const providerError = error instanceof ProviderError ? error : null
 
     inBackground(
       recordGeneration(admin, {
@@ -329,7 +361,14 @@ Deno.serve(async (req) => {
         generationType: body.operation,
         promptVersion,
         model: AI_MODEL,
-        status: isInvalidOutput ? 'invalid_output' : 'error',
+        provider: providerError?.provider ?? 'gemini',
+        // Cota esgotada ganha status próprio: no painel ela precisa aparecer
+        // separada de JSON inválido e de modelo fora do ar.
+        status: isInvalidOutput
+          ? 'invalid_output'
+          : providerError?.kind === 'quota'
+            ? 'quota_exceeded'
+            : 'error',
         latencyMs: Date.now() - startedAt,
         errorMessage: (error as Error).message,
       }),
@@ -342,9 +381,18 @@ Deno.serve(async (req) => {
       console.error('[ai-generate] saída inválida:', (error as Error).message)
       return errorResponse('invalid_ai_output', 502)
     }
-    if (isGeminiDown) {
-      console.error('[ai-generate] Gemini falhou:', (error as Error).message)
-      return errorResponse('ai_unavailable', 503, (error as Error).message)
+    if (providerError) {
+      console.error(
+        `[ai-generate] cadeia esgotada (${providerError.provider}/${providerError.kind}):`,
+        providerError.message,
+      )
+      return errorResponse(
+        'ai_unavailable',
+        503,
+        providerError.kind === 'quota'
+          ? 'A cota da IA acabou em todos os provedores configurados.'
+          : providerError.message,
+      )
     }
 
     console.error('Erro inesperado em ai-generate:', (error as Error).message)

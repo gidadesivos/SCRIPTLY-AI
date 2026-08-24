@@ -533,6 +533,19 @@ export interface Database {
         Args: { p_workspace_id: string }
         Returns: number
       }
+      provider_usage: {
+        Args: { p_workspace_id: string; p_days?: number }
+        Returns: Array<{
+          provider: string
+          total: number
+          sucessos: number
+          quota: number
+          erros: number
+          input_tokens: number
+          output_tokens: number
+          media_ms: number
+        }>
+      }
     }
     Enums: {
       member_role: MemberRole

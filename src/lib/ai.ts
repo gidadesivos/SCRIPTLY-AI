@@ -232,3 +232,29 @@ export function generateAdCopy(
 ) {
   return invoke<AdCopy>({ operation: 'generateAdCopy', ...ref, ...input })
 }
+
+export interface OpenRouterQuota {
+  limit: number | null
+  limitRemaining: number | null
+  usage: number | null
+  isFreeTier: boolean
+}
+
+export interface ProviderStatus {
+  /** Provedores com chave configurada, na ordem em que a cadeia os tenta. */
+  providers: string[]
+  /** Saldo real da chave do OpenRouter. null quando ele não está configurado. */
+  openRouter: OpenRouterQuota | null
+  /** Por que o saldo não veio, quando não veio. */
+  openRouterError: string | null
+}
+
+/**
+ * Estado dos provedores. Não gera nada e não consome cota de geração.
+ *
+ * Passa pela Edge Function porque a chave do OpenRouter não pode sair do
+ * servidor (N2) — consultar o saldo direto do navegador exporia a chave.
+ */
+export function fetchProviderStatus(workspaceId: string) {
+  return invoke<ProviderStatus>({ operation: 'providerStatus', workspaceId })
+}

@@ -52,3 +52,28 @@ export async function fetchPlanUsage(workspaceId: string): Promise<PlanUsage> {
     usedThisMonth: (usageResult.data as number | null) ?? 0,
   }
 }
+
+export interface ProviderUsageRow {
+  provider: string
+  total: number
+  sucessos: number
+  quota: number
+  erros: number
+  input_tokens: number
+  output_tokens: number
+  media_ms: number
+}
+
+/** Consumo por provedor nos últimos N dias, contado pelo banco. */
+export async function fetchProviderUsage(
+  workspaceId: string,
+  days = 30,
+): Promise<ProviderUsageRow[]> {
+  const { data, error } = await supabase.rpc('provider_usage', {
+    p_workspace_id: workspaceId,
+    p_days: days,
+  })
+
+  if (error) throw error
+  return (data as ProviderUsageRow[] | null) ?? []
+}

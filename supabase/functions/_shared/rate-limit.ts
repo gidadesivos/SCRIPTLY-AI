@@ -145,7 +145,9 @@ export interface TelemetryEntry {
   generationType: string
   promptVersion: string
   model: string
-  status: 'success' | 'invalid_output' | 'error' | 'rate_limited'
+  /** Quem atendeu. Default no banco é 'gemini', para as linhas antigas. */
+  provider?: string
+  status: 'success' | 'invalid_output' | 'error' | 'rate_limited' | 'quota_exceeded'
   latencyMs?: number
   inputTokens?: number | null
   outputTokens?: number | null
@@ -162,6 +164,7 @@ export async function recordGeneration(admin: SupabaseClient, entry: TelemetryEn
     generation_type: entry.generationType,
     prompt_version: entry.promptVersion,
     model: entry.model,
+    provider: entry.provider ?? 'gemini',
     status: entry.status,
     latency_ms: entry.latencyMs ?? null,
     input_tokens: entry.inputTokens ?? null,

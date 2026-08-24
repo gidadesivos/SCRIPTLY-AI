@@ -1,5 +1,6 @@
 import { z } from 'npm:zod@3.23.8'
-import { callGemini, type GeminiSchema, type GeminiResult } from './gemini.ts'
+import type { GeminiSchema } from './gemini.ts'
+import { callWithFallback, type ChainAttempt, type ChainResult } from './providers/index.ts'
 import { CONTENT_SYSTEM_V1 } from './prompts.ts'
 import {
   MAX_REPAIR_ATTEMPTS,
@@ -34,7 +35,6 @@ function safeJsonParse(text: string): unknown {
 }
 
 export interface RunOptions<T> {
-  apiKey: string
   operation: OperationName
   userPrompt: string
   geminiSchema: GeminiSchema
@@ -45,6 +45,11 @@ export interface RunOutcome<T> {
   data: T
   inputTokens: number | null
   outputTokens: number | null
+  /** Quem atendeu de fato — pode não ser o primeiro da cadeia. */
+  provider: string
+  model: string
+  /** O que falhou antes, para a telemetria registrar a troca. */
+  attempts: ChainAttempt[]
 }
 
 /**
@@ -53,18 +58,17 @@ export interface RunOutcome<T> {
  * erro amigável — nunca persistir objeto parcial.
  */
 export async function runOperation<T>({
-  apiKey,
   operation,
   userPrompt,
   geminiSchema,
   zodSchema,
 }: RunOptions<T>): Promise<RunOutcome<T>> {
   let prompt = userPrompt
-  let lastResult: GeminiResult | null = null
+  let lastResult: ChainResult | null = null
   let lastIssue = ''
 
   for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
-    lastResult = await callGemini(apiKey, {
+    lastResult = await callWithFallback({
       systemInstruction: CONTENT_SYSTEM_V1,
       userPrompt: prompt,
       responseSchema: geminiSchema,
@@ -80,6 +84,9 @@ export async function runOperation<T>({
         data: validated,
         inputTokens: lastResult.inputTokens,
         outputTokens: lastResult.outputTokens,
+        provider: lastResult.provider,
+        model: lastResult.model,
+        attempts: lastResult.attempts,
       }
     } catch (error) {
       lastIssue =

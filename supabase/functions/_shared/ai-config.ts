@@ -13,6 +13,24 @@ export const AI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash'
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
 /**
+ * Modelos que o OpenRouter tenta, em ordem, quando ele é acionado.
+ *
+ * É uma lista e não um modelo só porque o OpenRouter percorre sozinho quando um
+ * está fora ou recusa — é a cadeia dele, dentro da nossa. O último precisa ser
+ * o mais disponível, porque é onde a lista acaba.
+ *
+ * Todos precisam suportar response_format json_schema; sem isso a saída volta
+ * como texto solto e o pipeline rejeita no Zod.
+ */
+export const OPENROUTER_MODELS = (
+  Deno.env.get('OPENROUTER_MODELS') ??
+  'google/gemini-2.5-flash,anthropic/claude-haiku-4.5,openai/gpt-4.1-mini'
+)
+  .split(',')
+  .map((model) => model.trim())
+  .filter(Boolean)
+
+/**
  * 30s era curto demais e a telemetria mostrou: generateScript levava 66s em
  * média e completeBrief morria com "Tempo esgotado" em 91,8s — que é o timeout
  * batendo três vezes com backoff no meio. O usuário esperava um minuto e meio
