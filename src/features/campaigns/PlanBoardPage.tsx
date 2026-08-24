@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Plus, TriangleAlert, X } from 'lucide-react'
@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { Network } from 'lucide-react'
 import { CampaignCanvas } from '@/features/campaigns/components/CampaignCanvas'
 import { NodeInspector } from '@/features/campaigns/components/NodeInspector'
+import { CanvasLegend } from '@/features/campaigns/components/CanvasLegend'
 import { useNodeMutations, usePlan } from '@/features/campaigns/hooks/usePlan'
 import { countIssues } from '@/features/campaigns/validation'
 import { ALLOWED_CHILD, NODE_LABELS, type CampaignNode } from '@/features/campaigns/types'
@@ -63,24 +64,54 @@ export function PlanBoardPage() {
 
   const issueCount = useMemo(() => countIssues(nodes), [nodes])
 
-  function addNode(parentId: string | null) {
-    const parent = parentId ? nodes.find((node) => node.id === parentId) : null
-    const type = parent ? ALLOWED_CHILD[parent.type] : 'campanha'
-    if (!type) return
+  /**
+   * Estáveis de propósito.
+   *
+   * Estes callbacks descem para o canvas e entram nas dependências do efeito
+   * que ressincroniza os nós. Recriados a cada render, faziam esse efeito rodar
+   * o tempo todo — foi o que fez o arrasto voltar ao lugar. O canvas hoje
+   * preserva a posição de quem já está na tela, então isto é cinto além do
+   * suspensório, mas evita trabalho inútil a cada render.
+   */
+  const addNode = useCallback(
+    (parentId: string | null) => {
+      const parent = parentId ? nodes.find((node) => node.id === parentId) : null
+      const type = parent ? ALLOWED_CHILD[parent.type] : 'campanha'
+      if (!type) return
 
-    const siblings = nodes.filter((node) => node.parent_id === parentId)
+      const siblings = nodes.filter((node) => node.parent_id === parentId)
 
-    mutations.add.mutate({
-      workspaceId,
-      parentId,
-      type,
-      label: '',
-      // Zero pede o layout automático; um nó novo entra posicionado pela árvore.
-      positionX: 0,
-      positionY: 0,
-      orderIndex: siblings.length,
-    })
-  }
+      mutations.add.mutate({
+        workspaceId,
+        parentId,
+        type,
+        label: '',
+        // Zero pede o layout automático; um nó novo entra posicionado pela árvore.
+        positionX: 0,
+        positionY: 0,
+        orderIndex: siblings.length,
+      })
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nodes, workspaceId],
+  )
+
+  const removeNode = useCallback(
+    (id: string) => {
+      setSelectedId((current) => (current === id ? null : current))
+      mutations.remove.mutate(id)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
+  const moveNodes = useCallback(
+    (positions: Array<{ id: string; position_x: number; position_y: number }>) => {
+      mutations.move.mutate(positions)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
 
   if (isPending) {
     return (
@@ -118,12 +149,10 @@ export function PlanBoardPage() {
               selectedId={selectedId}
               onSelect={setSelectedId}
               onAddChild={addNode}
-              onDelete={(id) => {
-                if (selectedId === id) setSelectedId(null)
-                mutations.remove.mutate(id)
-              }}
-              onMove={(positions) => mutations.move.mutate(positions)}
+              onDelete={removeNode}
+              onMove={moveNodes}
             />
+            <CanvasLegend />
           </ReactFlowProvider>
         )}
 

@@ -13,7 +13,7 @@ import {
   updateNodePositions,
   type NodePatch,
 } from '@/features/campaigns/api'
-import type { CampaignNodeType } from '@/features/campaigns/types'
+import type { CampaignNode, CampaignNodeType } from '@/features/campaigns/types'
 import { strings } from '@/i18n/pt-BR'
 
 export function planQueryKey(planId: string | undefined) {
@@ -103,11 +103,33 @@ export function useNodeMutations(planId: string) {
   })
 
   /**
-   * Posição não invalida a consulta: o canvas já mostra o nó onde o usuário
-   * soltou, e refazer o fetch faria a árvore piscar a cada arrasto.
+   * Posição não invalida a consulta — refazer o fetch faria a árvore piscar a
+   * cada arrasto. Em vez disso escreve direto no cache.
+   *
+   * Sem isso o cache guardaria as posições antigas, e sair do plano e voltar
+   * dentro da janela de cache traria os nós de volta ao layout automático,
+   * mesmo com a posição certa já gravada no banco.
    */
   const move = useMutation({
     mutationFn: updateNodePositions,
+    onSuccess: (_result, positions) => {
+      queryClient.setQueryData<{ plan: unknown; nodes: CampaignNode[] }>(
+        planQueryKey(planId),
+        (current) => {
+          if (!current) return current
+          const moved = new Map(positions.map((p) => [p.id, p]))
+          return {
+            ...current,
+            nodes: current.nodes.map((node) => {
+              const update = moved.get(node.id)
+              return update
+                ? { ...node, position_x: update.position_x, position_y: update.position_y }
+                : node
+            }),
+          }
+        },
+      )
+    },
     onError: reportCampaignError,
   })
 
