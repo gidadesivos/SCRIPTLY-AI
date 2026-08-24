@@ -3,7 +3,7 @@ import { openRouterProvider } from './openrouter.ts'
 import { ProviderError, type CallOptions, type Provider, type ProviderResult } from './types.ts'
 
 export * from './types.ts'
-export { fetchOpenRouterQuota } from './openrouter.ts'
+export { fetchOpenRouterQuota, fetchOpenRouterCatalog, type CatalogModel } from './openrouter.ts'
 
 /**
  * A ordem é a política.

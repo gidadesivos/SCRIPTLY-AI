@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, ArrowDown, Check, Loader2, Zap } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { fetchProviderUsage, type ProviderUsageRow } from '@/features/settings/api'
+import { fetchDailyUsage, fetchProviderUsage, type ProviderUsageRow } from '@/features/settings/api'
+import { UsageChart } from '@/features/settings/components/UsageChart'
+import { ModelPicker } from '@/features/settings/components/ModelPicker'
 import { fetchProviderStatus } from '@/lib/ai'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { cn } from '@/lib/utils'
@@ -26,6 +28,12 @@ export function ProvidersCard() {
   const usage = useQuery({
     queryKey: ['provider-usage', workspaceId],
     queryFn: () => fetchProviderUsage(workspaceId, 30),
+    enabled: Boolean(workspaceId),
+  })
+
+  const daily = useQuery({
+    queryKey: ['daily-usage', workspaceId],
+    queryFn: () => fetchDailyUsage(workspaceId, 30),
     enabled: Boolean(workspaceId),
   })
 
@@ -61,7 +69,13 @@ export function ProvidersCard() {
           </p>
         )}
 
+        {daily.data && <UsageChart rows={daily.data} days={30} />}
+
         <Usage rows={usage.data} isLoading={usage.isPending} />
+
+        <div className="border-t border-border pt-4">
+          <ModelPicker />
+        </div>
       </CardContent>
     </Card>
   )

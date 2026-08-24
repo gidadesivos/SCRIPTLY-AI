@@ -88,7 +88,12 @@ export const openRouterProvider: Provider = {
         body: JSON.stringify({
           // Lista, não modelo único: o OpenRouter percorre em ordem quando um
           // está fora ou recusa. É a cadeia de fallback dele, dentro da nossa.
-          models: OPENROUTER_MODELS,
+          //
+          // A escolha do workspace vence a variável de ambiente; sem escolha,
+          // cai no padrão.
+          models: options.openRouterModels?.length
+            ? options.openRouterModels
+            : OPENROUTER_MODELS,
           messages: [
             { role: 'system', content: options.systemInstruction },
             { role: 'user', content: options.userPrompt },
@@ -146,7 +151,7 @@ export const openRouterProvider: Provider = {
         outputTokens: body.usage?.completion_tokens ?? null,
         provider: 'openrouter',
         // Qual modelo da lista atendeu — o OpenRouter informa na resposta.
-        model: body.model ?? OPENROUTER_MODELS[0],
+        model: body.model ?? options.openRouterModels?.[0] ?? OPENROUTER_MODELS[0],
       }
     } catch (error) {
       if (error instanceof ProviderError) throw error
@@ -202,4 +207,73 @@ export async function fetchOpenRouterQuota(): Promise<OpenRouterQuota | null> {
     usage: body.data?.usage ?? null,
     isFreeTier: Boolean(body.data?.is_free_tier),
   }
+}
+
+const MODELS_URL = 'https://openrouter.ai/api/v1/models'
+
+export interface CatalogModel {
+  id: string
+  name: string
+  contextLength: number | null
+  /** USD por milhão de tokens. Null quando o provedor não informa. */
+  pricePromptPerMillion: number | null
+  priceCompletionPerMillion: number | null
+  /**
+   * O modelo aceita response_format com json_schema?
+   *
+   * null = o catálogo não disse. Diferente de false: não dá para afirmar que
+   * não suporta, e marcar como incompatível esconderia modelos que funcionam.
+   */
+  supportsStructured: boolean | null
+}
+
+/**
+ * Catálogo do OpenRouter, normalizado.
+ *
+ * Os preços vêm como string em USD POR TOKEN — número minúsculo, do tipo que
+ * ninguém consegue comparar de cabeça. Converto para por-milhão aqui, que é
+ * como todo mundo publica preço de modelo.
+ */
+export async function fetchOpenRouterCatalog(): Promise<CatalogModel[]> {
+  if (!API_KEY) return []
+
+  const response = await fetch(MODELS_URL, {
+    headers: { Authorization: `Bearer ${API_KEY}` },
+  })
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter respondeu ${response.status} ao listar modelos.`)
+  }
+
+  const body = (await response.json()) as {
+    data?: Array<{
+      id?: string
+      name?: string
+      context_length?: number | null
+      pricing?: { prompt?: string; completion?: string }
+      supported_parameters?: string[]
+    }>
+  }
+
+  const perMillion = (value: string | undefined): number | null => {
+    if (value === undefined) return null
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed * 1_000_000 : null
+  }
+
+  return (body.data ?? [])
+    .filter((model): model is { id: string } & typeof model => Boolean(model.id))
+    .map((model) => {
+      const params = model.supported_parameters
+      return {
+        id: model.id,
+        name: model.name ?? model.id,
+        contextLength: model.context_length ?? null,
+        pricePromptPerMillion: perMillion(model.pricing?.prompt),
+        priceCompletionPerMillion: perMillion(model.pricing?.completion),
+        supportsStructured: params
+          ? params.includes('structured_outputs') || params.includes('response_format')
+          : null,
+      }
+    })
 }

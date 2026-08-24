@@ -39,6 +39,8 @@ export interface RunOptions<T> {
   userPrompt: string
   geminiSchema: GeminiSchema
   zodSchema: z.ZodType<T>
+  /** Modelos que o workspace escolheu para o OpenRouter. */
+  openRouterModels?: string[]
 }
 
 export interface RunOutcome<T> {
@@ -62,6 +64,7 @@ export async function runOperation<T>({
   userPrompt,
   geminiSchema,
   zodSchema,
+  openRouterModels,
 }: RunOptions<T>): Promise<RunOutcome<T>> {
   let prompt = userPrompt
   let lastResult: ChainResult | null = null
@@ -75,6 +78,7 @@ export async function runOperation<T>({
       temperature: TEMPERATURE[operation],
       maxOutputTokens: MAX_OUTPUT_TOKENS[operation],
       thinkingLevel: THINKING_LEVEL[operation],
+      openRouterModels,
     })
 
     try {

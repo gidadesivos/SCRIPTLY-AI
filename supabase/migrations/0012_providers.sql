@@ -56,7 +56,10 @@ as $$
     g.provider,
     count(*)::bigint,
     count(*) filter (where g.status = 'success')::bigint,
-    count(*) filter (where g.status = 'quota_exceeded')::bigint,
+    -- ::text de propósito: um valor de enum recém-adicionado não pode ser
+    -- comparado como enum na MESMA transação em que foi criado, e é assim que
+    -- as migrations são aplicadas. Comparar como texto contorna sem truque.
+    count(*) filter (where g.status::text = 'quota_exceeded')::bigint,
     count(*) filter (where g.status in ('error', 'invalid_output'))::bigint,
     coalesce(sum(g.input_tokens), 0)::bigint,
     coalesce(sum(g.output_tokens), 0)::bigint,

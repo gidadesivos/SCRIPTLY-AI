@@ -17,6 +17,12 @@
   --success: 142 71% 45%;
   --warning: 38 92% 50%;
   --info: 217 91% 60%;
+
+  /* Séries de gráfico. Validadas com o script de paleta: separação em visão
+     normal ΔE 36,9 e em deuteranopia 30,4 — bem acima do piso de 15/8.
+     Roxo+azul, que seria o par óbvio, REPROVA (ΔE 14,8 em visão normal). */
+  --chart-ok: 250 80% 58%;
+  --chart-fail: 0 72% 51%;
   --radius: 0.625rem;
 }
 
@@ -39,4 +45,8 @@
   --success: 142 71% 50%;
   --warning: 38 92% 55%;
   --info: 217 91% 65%;
+
+  /* Ver o tema claro. Revalidado contra a superfície escura. */
+  --chart-ok: 250 80% 65%;
+  --chart-fail: 0 72% 51%;
 }

@@ -20,6 +20,8 @@
   --color-success: hsl(var(--success));
   --color-warning: hsl(var(--warning));
   --color-info: hsl(var(--info));
+  --color-chart-ok: hsl(var(--chart-ok));
+  --color-chart-fail: hsl(var(--chart-fail));
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);

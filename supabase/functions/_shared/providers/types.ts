@@ -10,6 +10,13 @@ export interface CallOptions {
   temperature: number
   maxOutputTokens: number
   thinkingLevel?: 'low'
+  /**
+   * Modelos escolhidos pelo workspace para o OpenRouter, em ordem.
+   *
+   * Vazio ou ausente = usa a lista padrão da variável de ambiente. A escolha é
+   * opcional: quem não configurar nada continua funcionando como antes.
+   */
+  openRouterModels?: string[]
 }
 
 export interface ProviderResult {

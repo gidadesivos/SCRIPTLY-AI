@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { NotAllowedError } from '@/features/scripts/api'
 
 export interface PlanUsage {
   plan: string
@@ -76,4 +77,92 @@ export async function fetchProviderUsage(
 
   if (error) throw error
   return (data as ProviderUsageRow[] | null) ?? []
+}
+
+export interface DailyUsageRow {
+  dia: string
+  provider: string
+  total: number
+  falhas: number
+}
+
+/** Gerações por dia. Responde "estou acelerando?", que o total do mês esconde. */
+export async function fetchDailyUsage(workspaceId: string, days = 30): Promise<DailyUsageRow[]> {
+  const { data, error } = await supabase.rpc('daily_ai_usage', {
+    p_workspace_id: workspaceId,
+    p_days: days,
+  })
+
+  if (error) throw error
+  return (data as DailyUsageRow[] | null) ?? []
+}
+
+export interface WorkspaceModel {
+  id: string
+  provider: string
+  model_id: string
+  label: string
+  position: number
+  enabled: boolean
+}
+
+export async function listWorkspaceModels(workspaceId: string): Promise<WorkspaceModel[]> {
+  const { data, error } = await supabase
+    .from('workspace_ai_models')
+    .select('id, provider, model_id, label, position, enabled')
+    .eq('workspace_id', workspaceId)
+    .order('position', { ascending: true })
+    .returns<WorkspaceModel[]>()
+
+  if (error) throw error
+  return data
+}
+
+export async function addWorkspaceModel(input: {
+  workspaceId: string
+  modelId: string
+  label: string
+  position: number
+}): Promise<void> {
+  const { data, error } = await supabase
+    .from('workspace_ai_models')
+    .insert({
+      workspace_id: input.workspaceId,
+      provider: 'openrouter',
+      model_id: input.modelId,
+      label: input.label,
+      position: input.position,
+    })
+    .select('id')
+
+  if (error) throw error
+  if (!data?.length) {
+    throw new NotAllowedError('Só owner e admin podem mudar os modelos do workspace.')
+  }
+}
+
+export async function removeWorkspaceModel(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('workspace_ai_models')
+    .delete()
+    .eq('id', id)
+    .select('id')
+
+  if (error) throw error
+  if (!data?.length) {
+    throw new NotAllowedError('Só owner e admin podem mudar os modelos do workspace.')
+  }
+}
+
+/** Reordena a cadeia. Posições não têm restrição de unicidade: paralelo é seguro. */
+export async function reorderWorkspaceModels(
+  ordered: Array<{ id: string; position: number }>,
+): Promise<void> {
+  const results = await Promise.all(
+    ordered.map(({ id, position }) =>
+      supabase.from('workspace_ai_models').update({ position }).eq('id', id),
+    ),
+  )
+  const failed = results.find((result) => result.error)
+  if (failed?.error) throw failed.error
 }

@@ -2,7 +2,12 @@ import { z } from 'npm:zod@3.23.8'
 import { AI_MODEL } from '../_shared/ai-config.ts'
 import { authenticate, AuthError, ConfigError } from '../_shared/auth.ts'
 import { buildContext } from '../_shared/context.ts'
-import { ProviderError, fetchOpenRouterQuota, configuredProviders } from '../_shared/providers/index.ts'
+import {
+  ProviderError,
+  fetchOpenRouterCatalog,
+  fetchOpenRouterQuota,
+  configuredProviders,
+} from '../_shared/providers/index.ts'
 import { corsHeaders, errorResponse, jsonResponse } from '../_shared/http.ts'
 import { InvalidAiOutputError, runOperation } from '../_shared/pipeline.ts'
 import { checkRateLimit, recordGeneration } from '../_shared/rate-limit.ts'
@@ -133,6 +138,16 @@ const requestSchema = z.discriminatedUnion('operation', [
     operation: z.literal('providerStatus'),
     workspaceId: z.string().uuid(),
   }),
+  /**
+   * Catálogo de modelos do OpenRouter, para a tela de escolha.
+   *
+   * Passa por aqui pelo mesmo motivo do providerStatus: a chave não sai do
+   * servidor. Também não consome cota — listar não é gerar.
+   */
+  z.object({
+    operation: z.literal('listModels'),
+    workspaceId: z.string().uuid(),
+  }),
   z.object({
     operation: z.literal('generateAdCopy'),
     workspaceId: z.string().uuid(),
@@ -207,6 +222,33 @@ Deno.serve(async (req) => {
     })
   }
 
+  if (body.operation === 'listModels') {
+    try {
+      const models = await fetchOpenRouterCatalog()
+      return jsonResponse({ data: { models } })
+    } catch (error) {
+      console.error('[ai-generate] falha ao listar modelos:', (error as Error).message)
+      return errorResponse('ai_unavailable', 503, (error as Error).message)
+    }
+  }
+
+  /**
+   * Modelos que o workspace escolheu, em ordem.
+   *
+   * Consulta barata e feita uma vez por requisição. Lista vazia deixa o
+   * provedor cair no padrão da variável de ambiente — é o que mantém quem
+   * nunca configurou nada funcionando igual.
+   */
+  const { data: chosenModels } = await admin
+    .from('workspace_ai_models')
+    .select('model_id')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'openrouter')
+    .eq('enabled', true)
+    .order('position', { ascending: true })
+
+  const openRouterModels = (chosenModels ?? []).map((row: { model_id: string }) => row.model_id)
+
   const promptVersion = PROMPT_VERSIONS[body.operation]
 
   let verdict
@@ -268,6 +310,7 @@ Deno.serve(async (req) => {
             userPrompt: parseFreeformIdeaPrompt(body.idea),
             geminiSchema: briefGeminiSchema,
             zodSchema: briefZodSchema,
+            openRouterModels,
           })
         case 'completeBrief':
           return runOperation({
@@ -275,6 +318,7 @@ Deno.serve(async (req) => {
             userPrompt: completeBriefPrompt(body.brief, blocks),
             geminiSchema: briefGeminiSchema,
             zodSchema: briefZodSchema,
+            openRouterModels,
           })
         case 'generateAngles':
           return runOperation({
@@ -282,6 +326,7 @@ Deno.serve(async (req) => {
             userPrompt: generateAnglesPrompt(body.brief, blocks),
             geminiSchema: anglesGeminiSchema,
             zodSchema: anglesZodSchema,
+            openRouterModels,
           })
         case 'generateHooks':
           return runOperation({
@@ -289,6 +334,7 @@ Deno.serve(async (req) => {
             userPrompt: generateHooksPrompt(body.brief, body.angle, blocks),
             geminiSchema: hooksGeminiSchema,
             zodSchema: hooksZodSchema,
+            openRouterModels,
           })
         case 'generateScript':
           return runOperation({
@@ -296,6 +342,7 @@ Deno.serve(async (req) => {
             userPrompt: generateScriptPrompt(body.brief, body.angle, body.hook, blocks),
             geminiSchema: scriptGeminiSchema,
             zodSchema: scriptZodSchema,
+            openRouterModels,
           })
         case 'rewriteSection':
           return runOperation({
@@ -308,6 +355,7 @@ Deno.serve(async (req) => {
             ),
             geminiSchema: rewriteGeminiSchema,
             zodSchema: rewriteZodSchema,
+            openRouterModels,
           })
         case 'generateVariations':
           return runOperation({
@@ -315,6 +363,7 @@ Deno.serve(async (req) => {
             userPrompt: generateVariationsPrompt(body.script, body.count, blocks),
             geminiSchema: variationsGeminiSchema,
             zodSchema: variationsZodSchema,
+            openRouterModels,
           })
         case 'generateAdCopy':
           return runOperation({
@@ -328,6 +377,7 @@ Deno.serve(async (req) => {
             ),
             geminiSchema: adCopyGeminiSchema,
             zodSchema: adCopyZodSchema,
+            openRouterModels,
           })
       }
     })()

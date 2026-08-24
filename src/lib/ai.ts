@@ -258,3 +258,19 @@ export interface ProviderStatus {
 export function fetchProviderStatus(workspaceId: string) {
   return invoke<ProviderStatus>({ operation: 'providerStatus', workspaceId })
 }
+
+export interface CatalogModel {
+  id: string
+  name: string
+  contextLength: number | null
+  /** USD por milhão de tokens. */
+  pricePromptPerMillion: number | null
+  priceCompletionPerMillion: number | null
+  /** null = o catálogo não informou. Diferente de "não suporta". */
+  supportsStructured: boolean | null
+}
+
+/** Catálogo de modelos do OpenRouter. Passa pela Edge Function: a chave não sai do servidor. */
+export function listModels(workspaceId: string) {
+  return invoke<{ models: CatalogModel[] }>({ operation: 'listModels', workspaceId })
+}

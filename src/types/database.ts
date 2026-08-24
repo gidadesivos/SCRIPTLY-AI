@@ -370,6 +370,34 @@ export interface Database {
         }
         Relationships: []
       }
+      workspace_ai_models: {
+        Row: {
+          id: string
+          workspace_id: string
+          provider: string
+          model_id: string
+          label: string
+          position: number
+          enabled: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          provider?: string
+          model_id: string
+          label?: string
+          position?: number
+          enabled?: boolean
+          created_at?: string
+        }
+        Update: {
+          label?: string
+          position?: number
+          enabled?: boolean
+        }
+        Relationships: []
+      }
       plan_limits: {
         Row: {
           plan: WorkspacePlan
@@ -532,6 +560,10 @@ export interface Database {
       workspace_generations_this_month: {
         Args: { p_workspace_id: string }
         Returns: number
+      }
+      daily_ai_usage: {
+        Args: { p_workspace_id: string; p_days?: number }
+        Returns: Array<{ dia: string; provider: string; total: number; falhas: number }>
       }
       provider_usage: {
         Args: { p_workspace_id: string; p_days?: number }
