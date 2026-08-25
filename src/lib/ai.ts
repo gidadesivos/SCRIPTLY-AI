@@ -1,6 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import { strings } from '@/i18n/pt-BR'
 
+/** Referência ao modelo explícito escolhido pelo usuário. */
+export interface ModelRef {
+  provider: 'gemini' | 'openrouter' | 'groq'
+  modelId: string
+}
+
 export interface Brief {
   title: string
   description: string
@@ -140,24 +146,25 @@ interface ContextRef {
   productId?: string | null
 }
 
-export function parseFreeformIdea(workspaceId: string, idea: string) {
-  return invoke<Brief>({ operation: 'parseFreeformIdea', workspaceId, idea })
+export function parseFreeformIdea(workspaceId: string, idea: string, model?: ModelRef) {
+  return invoke<Brief>({ operation: 'parseFreeformIdea', workspaceId, idea, model })
 }
 
-export function completeBrief(ref: ContextRef, brief: Partial<Brief>) {
-  return invoke<Brief>({ operation: 'completeBrief', ...ref, brief })
+export function completeBrief(ref: ContextRef, brief: Partial<Brief>, model?: ModelRef) {
+  return invoke<Brief>({ operation: 'completeBrief', ...ref, brief, model })
 }
 
-export function generateAngles(ref: ContextRef, brief: Partial<Brief>) {
-  return invoke<{ angles: Angle[] }>({ operation: 'generateAngles', ...ref, brief })
+export function generateAngles(ref: ContextRef, brief: Partial<Brief>, model?: ModelRef) {
+  return invoke<{ angles: Angle[] }>({ operation: 'generateAngles', ...ref, brief, model })
 }
 
 export function generateHooks(
   ref: ContextRef,
   brief: Partial<Brief>,
   angle: { type: string; description: string },
+  model?: ModelRef,
 ) {
-  return invoke<{ hooks: Hook[] }>({ operation: 'generateHooks', ...ref, brief, angle })
+  return invoke<{ hooks: Hook[] }>({ operation: 'generateHooks', ...ref, brief, angle, model })
 }
 
 export function generateScript(
@@ -165,8 +172,9 @@ export function generateScript(
   brief: Partial<Brief>,
   angle: { type: string; description: string },
   hook: string,
+  model?: ModelRef,
 ) {
-  return invoke<GeneratedScript>({ operation: 'generateScript', ...ref, brief, angle, hook })
+  return invoke<GeneratedScript>({ operation: 'generateScript', ...ref, brief, angle, hook, model })
 }
 
 export interface RewriteResult {
@@ -189,6 +197,7 @@ export function rewriteSection(
   instruction: string,
   target: { label: string; current: string },
   surrounding: string,
+  model?: ModelRef,
 ) {
   return invoke<RewriteResult>({
     operation: 'rewriteSection',
@@ -196,6 +205,7 @@ export function rewriteSection(
     instruction,
     target,
     surrounding,
+    model,
   })
 }
 
@@ -203,12 +213,14 @@ export function generateVariations(
   ref: ContextRef,
   script: { title: string; hook: string; cta: string; scenes: string[] },
   count: number,
+  model?: ModelRef,
 ) {
   return invoke<{ variations: VariationDraftFromAi[] }>({
     operation: 'generateVariations',
     ...ref,
     script,
     count,
+    model,
   })
 }
 
@@ -229,8 +241,9 @@ export interface AdCopy {
 export function generateAdCopy(
   ref: ContextRef,
   input: { briefing: string; format: string; cta: string; scriptContext: string },
+  model?: ModelRef,
 ) {
-  return invoke<AdCopy>({ operation: 'generateAdCopy', ...ref, ...input })
+  return invoke<AdCopy>({ operation: 'generateAdCopy', ...ref, ...input, model })
 }
 
 export interface OpenRouterQuota {
@@ -270,7 +283,7 @@ export interface CatalogModel {
   supportsStructured: boolean | null
 }
 
-/** Catálogo de modelos do OpenRouter. Passa pela Edge Function: a chave não sai do servidor. */
-export function listModels(workspaceId: string) {
-  return invoke<{ models: CatalogModel[] }>({ operation: 'listModels', workspaceId })
+/** Catálogo de modelos. Passa pela Edge Function: a chave não sai do servidor. */
+export function listModels(workspaceId: string, provider: 'openrouter' | 'groq' | 'gemini') {
+  return invoke<{ models: CatalogModel[] }>({ operation: 'listModels', workspaceId, provider })
 }

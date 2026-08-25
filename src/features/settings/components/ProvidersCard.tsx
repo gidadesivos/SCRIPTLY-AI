@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 const LABELS: Record<string, string> = {
   gemini: 'Google Gemini',
   openrouter: 'OpenRouter',
+  groq: 'Groq',
 }
 
 /**
@@ -74,7 +75,15 @@ export function ProvidersCard() {
         <Usage rows={usage.data} isLoading={usage.isPending} />
 
         <div className="border-t border-border pt-4">
-          <ModelPicker />
+          <ModelPicker provider="openrouter" />
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <ModelPicker provider="groq" />
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <ModelPicker provider="gemini" />
         </div>
       </CardContent>
     </Card>

@@ -6,8 +6,11 @@ import {
   ProviderError,
   fetchOpenRouterCatalog,
   fetchOpenRouterQuota,
+  fetchGroqCatalog,
+  fetchGeminiCatalog,
   configuredProviders,
 } from '../_shared/providers/index.ts'
+import type { ProviderName } from '../_shared/providers/types.ts'
 import { corsHeaders, errorResponse, jsonResponse } from '../_shared/http.ts'
 import { InvalidAiOutputError, runOperation } from '../_shared/pipeline.ts'
 import { checkRateLimit, recordGeneration } from '../_shared/rate-limit.ts'
@@ -21,6 +24,8 @@ import {
   generateVariationsPrompt,
   parseFreeformIdeaPrompt,
   rewriteSectionPrompt,
+  MINIMAL_SYSTEM_PROMPT_V1,
+  EDITOR_SYSTEM_PROMPT_V1,
 } from '../_shared/prompts.ts'
 import {
   adCopyGeminiSchema,
@@ -64,11 +69,18 @@ function inBackground(promise: Promise<unknown>) {
 const angleSchema = z.object({ type: z.string(), description: z.string() })
 const briefSchema = z.record(z.unknown())
 
+/** Modelo explícito escolhido pelo usuário na top bar. */
+const modelSchema = z.object({
+  provider: z.enum(['gemini', 'openrouter', 'groq']),
+  modelId: z.string().min(1),
+}).optional()
+
 const requestSchema = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('parseFreeformIdea'),
     workspaceId: z.string().uuid(),
     idea: z.string().min(3).max(2000),
+    model: modelSchema,
   }),
   z.object({
     operation: z.literal('completeBrief'),
@@ -76,6 +88,7 @@ const requestSchema = z.discriminatedUnion('operation', [
     brandId: z.string().uuid(),
     productId: z.string().uuid().nullish(),
     brief: briefSchema,
+    model: modelSchema,
   }),
   z.object({
     operation: z.literal('generateAngles'),
@@ -83,6 +96,7 @@ const requestSchema = z.discriminatedUnion('operation', [
     brandId: z.string().uuid(),
     productId: z.string().uuid().nullish(),
     brief: briefSchema,
+    model: modelSchema,
   }),
   z.object({
     operation: z.literal('generateHooks'),
@@ -91,6 +105,7 @@ const requestSchema = z.discriminatedUnion('operation', [
     productId: z.string().uuid().nullish(),
     brief: briefSchema,
     angle: angleSchema,
+    model: modelSchema,
   }),
   z.object({
     operation: z.literal('generateScript'),
@@ -100,6 +115,7 @@ const requestSchema = z.discriminatedUnion('operation', [
     brief: briefSchema,
     angle: angleSchema,
     hook: z.string().min(1),
+    model: modelSchema,
   }),
   z.object({
     operation: z.literal('rewriteSection'),
@@ -112,6 +128,7 @@ const requestSchema = z.discriminatedUnion('operation', [
       current: z.string(),
     }),
     surrounding: z.string().max(8000).default(''),
+    model: modelSchema,
   }),
   z.object({
     operation: z.literal('generateVariations'),
@@ -125,6 +142,7 @@ const requestSchema = z.discriminatedUnion('operation', [
       scenes: z.array(z.string()),
     }),
     count: z.number().int().min(1).max(3).default(2),
+    model: modelSchema,
   }),
   /**
    * Não gera nada: devolve o estado dos provedores.
@@ -147,6 +165,7 @@ const requestSchema = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('listModels'),
     workspaceId: z.string().uuid(),
+    provider: z.enum(['openrouter', 'groq', 'gemini']).default('openrouter'),
   }),
   z.object({
     operation: z.literal('generateAdCopy'),
@@ -158,6 +177,7 @@ const requestSchema = z.discriminatedUnion('operation', [
     cta: z.string().max(50).default(''),
     // Locução do roteiro vinculado, quando houver. Truncada no cliente.
     scriptContext: z.string().max(4000).default(''),
+    model: modelSchema,
   }),
 ])
 
@@ -224,7 +244,14 @@ Deno.serve(async (req) => {
 
   if (body.operation === 'listModels') {
     try {
-      const models = await fetchOpenRouterCatalog()
+      let models
+      if (body.provider === 'groq') {
+        models = await fetchGroqCatalog()
+      } else if (body.provider === 'gemini') {
+        models = await fetchGeminiCatalog()
+      } else {
+        models = await fetchOpenRouterCatalog()
+      }
       return jsonResponse({ data: { models } })
     } catch (error) {
       console.error('[ai-generate] falha ao listar modelos:', (error as Error).message)
@@ -241,13 +268,28 @@ Deno.serve(async (req) => {
    */
   const { data: chosenModels } = await admin
     .from('workspace_ai_models')
-    .select('model_id')
+    .select('provider, model_id')
     .eq('workspace_id', workspaceId)
-    .eq('provider', 'openrouter')
     .eq('enabled', true)
     .order('position', { ascending: true })
 
-  const openRouterModels = (chosenModels ?? []).map((row: { model_id: string }) => row.model_id)
+  const openRouterModels = (chosenModels ?? [])
+    .filter((row: { provider: string }) => row.provider === 'openrouter')
+    .map((row: { model_id: string }) => row.model_id)
+
+  const groqModels = (chosenModels ?? [])
+    .filter((row: { provider: string }) => row.provider === 'groq')
+    .map((row: { model_id: string }) => row.model_id)
+
+  const geminiModels = (chosenModels ?? [])
+    .filter((row: { provider: string }) => row.provider === 'gemini')
+    .map((row: { model_id: string }) => row.model_id)
+
+  // Modelo explícito escolhido pelo usuário na top bar.
+  // Quando presente, o pipeline chama APENAS este provedor/modelo sem fallback.
+  const explicitModel = 'model' in body && body.model
+    ? { provider: body.model.provider as ProviderName, modelId: body.model.modelId }
+    : undefined
 
   const promptVersion = PROMPT_VERSIONS[body.operation]
 
@@ -307,10 +349,14 @@ Deno.serve(async (req) => {
         case 'parseFreeformIdea':
           return runOperation({
             operation: 'parseFreeformIdea',
+            systemPrompt: MINIMAL_SYSTEM_PROMPT_V1,
             userPrompt: parseFreeformIdeaPrompt(body.idea),
             geminiSchema: briefGeminiSchema,
             zodSchema: briefZodSchema,
             openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
           })
         case 'completeBrief':
           return runOperation({
@@ -319,6 +365,9 @@ Deno.serve(async (req) => {
             geminiSchema: briefGeminiSchema,
             zodSchema: briefZodSchema,
             openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
           })
         case 'generateAngles':
           return runOperation({
@@ -327,6 +376,9 @@ Deno.serve(async (req) => {
             geminiSchema: anglesGeminiSchema,
             zodSchema: anglesZodSchema,
             openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
           })
         case 'generateHooks':
           return runOperation({
@@ -335,6 +387,9 @@ Deno.serve(async (req) => {
             geminiSchema: hooksGeminiSchema,
             zodSchema: hooksZodSchema,
             openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
           })
         case 'generateScript':
           return runOperation({
@@ -343,10 +398,14 @@ Deno.serve(async (req) => {
             geminiSchema: scriptGeminiSchema,
             zodSchema: scriptZodSchema,
             openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
           })
         case 'rewriteSection':
           return runOperation({
             operation: 'rewriteSection',
+            systemPrompt: EDITOR_SYSTEM_PROMPT_V1,
             userPrompt: rewriteSectionPrompt(
               body.instruction,
               body.target,
@@ -356,14 +415,21 @@ Deno.serve(async (req) => {
             geminiSchema: rewriteGeminiSchema,
             zodSchema: rewriteZodSchema,
             openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
           })
         case 'generateVariations':
           return runOperation({
             operation: 'generateVariations',
+            systemPrompt: EDITOR_SYSTEM_PROMPT_V1,
             userPrompt: generateVariationsPrompt(body.script, body.count, blocks),
             geminiSchema: variationsGeminiSchema,
             zodSchema: variationsZodSchema,
             openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
           })
         case 'generateAdCopy':
           return runOperation({
@@ -378,6 +444,9 @@ Deno.serve(async (req) => {
             geminiSchema: adCopyGeminiSchema,
             zodSchema: adCopyZodSchema,
             openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
           })
       }
     })()

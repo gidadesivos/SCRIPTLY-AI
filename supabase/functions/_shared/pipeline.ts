@@ -1,6 +1,7 @@
 import { z } from 'npm:zod@3.23.8'
 import type { GeminiSchema } from './gemini.ts'
-import { callWithFallback, type ChainAttempt, type ChainResult } from './providers/index.ts'
+import { callWithFallback, callExplicit, type ChainAttempt, type ChainResult } from './providers/index.ts'
+import type { ProviderName } from './providers/types.ts'
 import { CONTENT_SYSTEM_V1 } from './prompts.ts'
 import {
   MAX_REPAIR_ATTEMPTS,
@@ -36,11 +37,19 @@ function safeJsonParse(text: string): unknown {
 
 export interface RunOptions<T> {
   operation: OperationName
+  systemPrompt?: string
   userPrompt: string
   geminiSchema: GeminiSchema
   zodSchema: z.ZodType<T>
   /** Modelos que o workspace escolheu para o OpenRouter. */
   openRouterModels?: string[]
+  groqModels?: string[]
+  geminiModels?: string[]
+  /**
+   * Quando presente, chama exatamente este provedor/modelo sem fallback.
+   * É o modo "seleção manual" do usuário.
+   */
+  explicitModel?: { provider: ProviderName; modelId: string }
 }
 
 export interface RunOutcome<T> {
@@ -61,25 +70,35 @@ export interface RunOutcome<T> {
  */
 export async function runOperation<T>({
   operation,
+  systemPrompt,
   userPrompt,
   geminiSchema,
   zodSchema,
   openRouterModels,
+  groqModels,
+  geminiModels,
+  explicitModel,
 }: RunOptions<T>): Promise<RunOutcome<T>> {
   let prompt = userPrompt
   let lastResult: ChainResult | null = null
   let lastIssue = ''
 
   for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
-    lastResult = await callWithFallback({
-      systemInstruction: CONTENT_SYSTEM_V1,
+    const callOptions = {
+      systemInstruction: systemPrompt ?? CONTENT_SYSTEM_V1,
       userPrompt: prompt,
       responseSchema: geminiSchema,
       temperature: TEMPERATURE[operation],
       maxOutputTokens: MAX_OUTPUT_TOKENS[operation],
       thinkingLevel: THINKING_LEVEL[operation],
       openRouterModels,
-    })
+      groqModels,
+      geminiModels,
+    }
+
+    lastResult = explicitModel
+      ? await callExplicit(explicitModel.provider, explicitModel.modelId, callOptions)
+      : await callWithFallback(callOptions)
 
     try {
       const parsed = safeJsonParse(lastResult.text)

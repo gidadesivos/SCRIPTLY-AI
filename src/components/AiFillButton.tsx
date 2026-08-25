@@ -7,9 +7,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { AiError, rewriteSection } from '@/lib/ai'
+import { AiError, rewriteSection, type ModelRef } from '@/lib/ai'
 import { useActiveWorkspaceOptional } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { useActiveBrandOptional } from '@/features/brands/hooks/useActiveBrand'
+import { useActiveModelOptional } from '@/hooks/useActiveModel'
 import { strings } from '@/i18n/pt-BR'
 
 interface AiFillButtonProps {
@@ -40,6 +41,11 @@ export function AiFillButton({
   // ele se desabilita em vez de derrubar o formulário inteiro.
   const activeWorkspace = useActiveWorkspaceOptional()?.activeWorkspace ?? null
   const activeBrand = useActiveBrandOptional()?.activeBrand ?? null
+  const activeModelCtx = useActiveModelOptional()
+
+  const modelRef: ModelRef | undefined = activeModelCtx?.activeModel
+    ? { provider: activeModelCtx.activeModel.provider, modelId: activeModelCtx.activeModel.modelId }
+    : undefined
 
   const [isOpen, setIsOpen] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
@@ -62,6 +68,7 @@ export function AiFillButton({
         instruction,
         { label, current: value },
         surrounding,
+        modelRef,
       )
       setSuggestion(result.content)
     } catch (error) {

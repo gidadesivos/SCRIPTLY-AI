@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { completeBrief, AiError, type Brief } from '@/lib/ai'
+import { completeBrief, AiError, type Brief, type ModelRef } from '@/lib/ai'
+import { useActiveModel } from '@/hooks/useActiveModel'
 import type { FunnelStage, Platform } from '@/types/database'
 import { OBJECTIVES, TONES, PLATFORMS, FUNNEL_STAGES, DURATIONS } from '@/config/options'
 import { strings } from '@/i18n/pt-BR'
@@ -43,11 +44,16 @@ interface BriefStepProps {
 export function BriefStep({ brief, onChange, onNext, contextRef }: BriefStepProps) {
   const [suggestions, setSuggestions] = useState<Partial<Brief> | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
+  const { activeModel } = useActiveModel()
+
+  const modelRef: ModelRef | undefined = activeModel
+    ? { provider: activeModel.provider, modelId: activeModel.modelId }
+    : undefined
 
   async function handleComplete() {
     setIsCompleting(true)
     try {
-      const result = await completeBrief(contextRef, brief)
+      const result = await completeBrief(contextRef, brief, modelRef)
       // Só sugestões para campos ainda vazios: a IA nunca sobrescreve o que
       // o usuário escreveu (§13 passo 6).
       const filtered: Partial<Brief> = {}

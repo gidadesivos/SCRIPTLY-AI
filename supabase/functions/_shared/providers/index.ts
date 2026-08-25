@@ -1,9 +1,12 @@
 import { geminiProvider } from './gemini.ts'
 import { openRouterProvider } from './openrouter.ts'
+import { groqProvider } from './groq.ts'
 import { ProviderError, type CallOptions, type Provider, type ProviderResult } from './types.ts'
 
 export * from './types.ts'
 export { fetchOpenRouterQuota, fetchOpenRouterCatalog, type CatalogModel } from './openrouter.ts'
+export { fetchGroqCatalog } from './groq.ts'
+export { fetchGeminiCatalog } from './gemini.ts'
 
 /**
  * A ordem é a política.
@@ -11,11 +14,12 @@ export { fetchOpenRouterQuota, fetchOpenRouterCatalog, type CatalogModel } from 
  * Gemini primeiro porque é o provedor direto: uma camada a menos entre o app e
  * o modelo, e é onde a conta paga está. OpenRouter é a rede de segurança —
  * entra quando o primeiro acabou a cota, está fora do ar ou demorou demais.
+ * Groq é adicionado ao final da cadeia para fallback extremo.
  *
  * Provedor sem chave configurada não entra na lista, então instalar sem
  * OPENROUTER_API_KEY continua funcionando exatamente como antes.
  */
-const CHAIN: Provider[] = [geminiProvider, openRouterProvider]
+const CHAIN: Provider[] = [geminiProvider, openRouterProvider, groqProvider]
 
 export function configuredProviders(): Provider[] {
   return CHAIN.filter((provider) => provider.isConfigured())
@@ -81,4 +85,49 @@ export async function callWithFallback(options: CallOptions): Promise<ChainResul
   }
 
   throw lastError ?? new ProviderError('gemini', 'upstream', 'Falha desconhecida.', null)
+}
+
+/**
+ * Chamada direta a UM provedor e UM modelo, sem fallback.
+ *
+ * Usada quando o usuário escolhe explicitamente qual modelo quer. Se falhar,
+ * o erro sobe direto — não mascara com outro provedor.
+ */
+export async function callExplicit(
+  providerName: ProviderName,
+  modelId: string,
+  options: CallOptions,
+): Promise<ChainResult> {
+  const provider = CHAIN.find((p) => p.name === providerName)
+
+  if (!provider || !provider.isConfigured()) {
+    throw new ProviderError(
+      providerName,
+      'config',
+      `Provedor "${providerName}" não está configurado.`,
+      null,
+    )
+  }
+
+  // Injeta o modelo escolhido como único da lista, para que o provedor
+  // use exatamente ele e não a lista padrão.
+  const overriddenOptions: CallOptions = {
+    ...options,
+    ...(providerName === 'openrouter' ? { openRouterModels: [modelId] } : {}),
+    ...(providerName === 'groq' ? { groqModels: [modelId] } : {}),
+    ...(providerName === 'gemini' ? { geminiModels: [modelId] } : {}),
+  }
+
+  try {
+    const result = await provider.call(overriddenOptions)
+    return { ...result, attempts: [] }
+  } catch (error) {
+    const failure =
+      error instanceof ProviderError
+        ? error
+        : new ProviderError(providerName, 'upstream', (error as Error).message, null)
+
+    console.error(`[ia] ${providerName}/${modelId} falhou (${failure.kind}): ${failure.message}`)
+    throw failure
+  }
 }

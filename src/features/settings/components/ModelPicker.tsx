@@ -25,7 +25,7 @@ import { strings } from '@/i18n/pt-BR'
  * Por isso a tela diz qual estado está valendo em vez de mostrar uma lista
  * vazia que pareceria "nada configurado, nada funciona".
  */
-export function ModelPicker() {
+export function ModelPicker({ provider }: { provider: 'openrouter' | 'groq' | 'gemini' }) {
   const { activeWorkspace } = useActiveWorkspace()
   const workspaceId = activeWorkspace?.id ?? ''
   const canEdit = canDeleteScripts(activeWorkspace?.role)
@@ -41,8 +41,8 @@ export function ModelPicker() {
   })
 
   const catalog = useQuery({
-    queryKey: ['model-catalog', workspaceId],
-    queryFn: () => listModels(workspaceId),
+    queryKey: ['model-catalog', workspaceId, provider],
+    queryFn: () => listModels(workspaceId, provider),
     // Só busca quando o usuário abre a lista: são centenas de modelos e a
     // chamada sai da Edge Function até o OpenRouter.
     enabled: isBrowsing && Boolean(workspaceId),
@@ -58,13 +58,18 @@ export function ModelPicker() {
     toast.error(error instanceof NotAllowedError ? error.message : strings.errors.unexpected)
   }
 
+  const models = useMemo(() => {
+    return (chosen.data ?? []).filter((m) => m.provider === provider)
+  }, [chosen.data, provider])
+
   const add = useMutation({
     mutationFn: (model: CatalogModel) =>
       addWorkspaceModel({
         workspaceId,
+        provider,
         modelId: model.id,
         label: model.name,
-        position: (chosen.data?.length ?? 0) + 1,
+        position: models.length + 1,
       }),
     onSuccess: refresh,
     onError: report,
@@ -82,7 +87,6 @@ export function ModelPicker() {
     onError: report,
   })
 
-  const models = chosen.data ?? []
   const chosenIds = new Set(models.map((model) => model.model_id))
 
   const results = useMemo(() => {
@@ -90,6 +94,9 @@ export function ModelPicker() {
     const term = search.trim().toLowerCase()
     return all
       .filter((model) => !chosenIds.has(model.id))
+      .filter(
+        (model) => model.pricePromptPerMillion === 0 && model.priceCompletionPerMillion === 0
+      )
       .filter(
         (model) =>
           !term || model.id.toLowerCase().includes(term) || model.name.toLowerCase().includes(term),
@@ -109,7 +116,7 @@ export function ModelPicker() {
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <p className="text-sm font-medium">Modelos do OpenRouter</p>
+        <p className="text-sm font-medium">Modelos do {provider === 'openrouter' ? 'OpenRouter' : 'Groq'}</p>
         <p className="text-xs text-muted-foreground">
           Tentados nesta ordem quando o Gemini não atende. Sem escolha, vale a lista padrão.
         </p>
@@ -141,15 +148,17 @@ export function ModelPicker() {
       {canEdit && (
         <>
           {!isBrowsing ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 self-start"
-              onClick={() => setIsBrowsing(true)}
-            >
-              <Plus className="h-4 w-4" />
-              Adicionar modelo
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9"
+                onClick={() => setIsBrowsing(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar modelo
+              </Button>
+            </div>
           ) : (
             <div className="flex flex-col gap-2 rounded-md border border-border p-3">
               <div className="relative">
@@ -171,10 +180,13 @@ export function ModelPicker() {
               )}
 
               {catalog.isError && (
-                <p className="flex items-start gap-1.5 py-2 text-xs text-warning">
-                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
-                  Não consegui ler o catálogo. Confira se OPENROUTER_API_KEY está nos secrets.
-                </p>
+                <div className="flex flex-col items-start gap-1.5 py-2 text-xs text-warning">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                    Não consegui ler o catálogo. Confira se {provider === 'openrouter' ? 'OPENROUTER_API_KEY' : provider === 'groq' ? 'GROQ_API_KEY' : 'GEMINI_API_KEY'} está nos secrets.
+                  </div>
+                  <span className="text-muted-foreground">{catalog.error instanceof Error ? catalog.error.message : String(catalog.error)}</span>
+                </div>
               )}
 
               {catalog.data && (

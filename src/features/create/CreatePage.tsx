@@ -38,7 +38,9 @@ import {
   type Angle,
   type GeneratedScript,
   type Hook,
+  type ModelRef,
 } from '@/lib/ai'
+import { useActiveModel } from '@/hooks/useActiveModel'
 import { strings } from '@/i18n/pt-BR'
 
 const STEPS: Step[] = [
@@ -68,6 +70,11 @@ export function CreatePage() {
   const { activeWorkspace } = useActiveWorkspace()
   const { activeBrand, brands } = useActiveBrand()
   const workspaceId = activeWorkspace?.id ?? ''
+  const { activeModel } = useActiveModel()
+
+  const modelRef: ModelRef | undefined = activeModel
+    ? { provider: activeModel.provider, modelId: activeModel.modelId }
+    : undefined
 
   const { data: products = [] } = useProducts({ workspaceId, status: 'active' })
 
@@ -168,7 +175,7 @@ export function CreatePage() {
     }
     setLoadingMessages([strings.create.loading.brief])
     try {
-      const parsed = await parseFreeformIdea(workspaceId, idea)
+      const parsed = await parseFreeformIdea(workspaceId, idea, modelRef)
       setBrief({ ...EMPTY_BRIEF, ...parsed })
       setStep('brief')
     } catch (error) {
@@ -188,7 +195,7 @@ export function CreatePage() {
 
     setLoadingMessages([strings.create.loading.angles])
     try {
-      const result = await generateAngles(contextRef, brief)
+      const result = await generateAngles(contextRef, brief, modelRef)
       anglesCache.current.set(cacheKey, result.angles)
       showAngles(result.angles)
     } catch (error) {
@@ -221,7 +228,7 @@ export function CreatePage() {
       const result = await generateHooks(contextRef, brief, {
         type: selectedAngle.type,
         description: selectedAngle.description,
-      })
+      }, modelRef)
       hooksCache.current.set(cacheKey, result.hooks)
       showHooks(result.hooks)
     } catch (error) {
@@ -257,6 +264,7 @@ export function CreatePage() {
         brief,
         { type: selectedAngle.type, description: selectedAngle.description },
         selectedHook.text,
+        modelRef,
       )
       scriptCache.current.set(cacheKey, result)
       setScript(result)

@@ -6,7 +6,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { createVariation, listVariations } from '@/features/scripts/versions-api'
-import { AiError, generateVariations } from '@/lib/ai'
+import { AiError, generateVariations, type ModelRef } from '@/lib/ai'
+import { useActiveModel } from '@/hooks/useActiveModel'
 import { strings } from '@/i18n/pt-BR'
 import type { Scene, Script } from '@/features/scripts/api'
 
@@ -21,6 +22,11 @@ interface VariationsPanelProps {
 export function VariationsPanel({ script, scenes, contextRef }: VariationsPanelProps) {
   const queryClient = useQueryClient()
   const [isGenerating, setIsGenerating] = useState(false)
+  const { activeModel } = useActiveModel()
+
+  const modelRef: ModelRef | undefined = activeModel
+    ? { provider: activeModel.provider, modelId: activeModel.modelId }
+    : undefined
 
   const { data: variations = [] } = useQuery({
     queryKey: ['scripts', 'variations', script.id],
@@ -42,6 +48,7 @@ export function VariationsPanel({ script, scenes, contextRef }: VariationsPanelP
           scenes: scenes.map((scene) => scene.voiceover ?? ''),
         },
         1,
+        modelRef,
       )
 
       const draft = result.variations[0]

@@ -1,7 +1,7 @@
 import type { GeminiSchema } from '../gemini.ts'
 
 /** Quem atendeu a chamada. Não é o modelo — é a porta. */
-export type ProviderName = 'gemini' | 'openrouter'
+export type ProviderName = 'gemini' | 'openrouter' | 'groq'
 
 export interface CallOptions {
   systemInstruction: string
@@ -17,6 +17,7 @@ export interface CallOptions {
    * opcional: quem não configurar nada continua funcionando como antes.
    */
   openRouterModels?: string[]
+  groqModels?: string[]
 }
 
 export interface ProviderResult {

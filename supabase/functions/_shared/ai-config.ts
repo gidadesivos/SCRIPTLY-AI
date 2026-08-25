@@ -30,6 +30,14 @@ export const OPENROUTER_MODELS = (
   .map((model) => model.trim())
   .filter(Boolean)
 
+export const GROQ_MODELS = (
+  Deno.env.get('GROQ_MODELS') ??
+  'openai/gpt-oss-120b,qwen/qwen3.6-27b,groq/compound'
+)
+  .split(',')
+  .map((model) => model.trim())
+  .filter(Boolean)
+
 /**
  * 30s era curto demais e a telemetria mostrou: generateScript levava 66s em
  * média e completeBrief morria com "Tempo esgotado" em 91,8s — que é o timeout

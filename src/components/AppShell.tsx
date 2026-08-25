@@ -2,11 +2,13 @@ import { Suspense, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Menu, Loader2 } from 'lucide-react'
 import { AppSidebar } from '@/components/AppSidebar'
+import { ModelSelector } from '@/components/ModelSelector'
 import { RouteFallback } from '@/components/RouteFallback'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ActiveWorkspaceProvider, useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { ActiveBrandProvider } from '@/features/brands/hooks/useActiveBrand'
+import { ActiveModelProvider } from '@/hooks/useActiveModel'
 import { OnboardingPage } from '@/features/workspaces/components/OnboardingPage'
 import { APP_NAME } from '@/config/brand'
 
@@ -33,6 +35,7 @@ function AppShellInner() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile header */}
         <header className="flex h-14 items-center gap-3 border-b border-border px-4 md:hidden">
           <Button
             variant="ghost"
@@ -44,6 +47,14 @@ function AppShellInner() {
             <Menu className="h-5 w-5" />
           </Button>
           <span className="text-sm font-semibold">{APP_NAME}</span>
+          <div className="ml-auto">
+            <ModelSelector />
+          </div>
+        </header>
+
+        {/* Desktop top bar */}
+        <header className="hidden h-12 items-center justify-end border-b border-border px-4 md:flex">
+          <ModelSelector />
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -70,7 +81,9 @@ export function AppShell() {
   return (
     <ActiveWorkspaceProvider>
       <ActiveBrandProvider>
-        <AppShellInner />
+        <ActiveModelProvider>
+          <AppShellInner />
+        </ActiveModelProvider>
       </ActiveBrandProvider>
     </ActiveWorkspaceProvider>
   )

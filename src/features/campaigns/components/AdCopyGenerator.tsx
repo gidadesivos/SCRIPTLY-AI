@@ -4,9 +4,10 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/FormField'
-import { AiError, generateAdCopy, type AdCopy } from '@/lib/ai'
+import { AiError, generateAdCopy, type AdCopy, type ModelRef } from '@/lib/ai'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { useActiveBrand } from '@/features/brands/hooks/useActiveBrand'
+import { useActiveModel } from '@/hooks/useActiveModel'
 import { labelFor } from '@/config/options'
 import { META_CTAS } from '@/features/campaigns/meta-options'
 import { strings } from '@/i18n/pt-BR'
@@ -31,6 +32,11 @@ interface AdCopyGeneratorProps {
 export function AdCopyGenerator({ format, cta, scriptContext, onApply }: AdCopyGeneratorProps) {
   const { activeWorkspace } = useActiveWorkspace()
   const { activeBrand } = useActiveBrand()
+  const { activeModel } = useActiveModel()
+
+  const modelRef: ModelRef | undefined = activeModel
+    ? { provider: activeModel.provider, modelId: activeModel.modelId }
+    : undefined
 
   const [briefing, setBriefing] = useState('')
   const [isRunning, setIsRunning] = useState(false)
@@ -45,6 +51,7 @@ export function AdCopyGenerator({ format, cta, scriptContext, onApply }: AdCopyG
       const copy = await generateAdCopy(
         { workspaceId: activeWorkspace.id, brandId: activeBrand.id, productId: null },
         { briefing: briefing.trim(), format, cta, scriptContext },
+        modelRef,
       )
       setResult(copy)
     } catch (error) {

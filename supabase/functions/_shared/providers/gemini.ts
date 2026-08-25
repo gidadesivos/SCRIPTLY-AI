@@ -38,14 +38,15 @@ export const geminiProvider: Provider = {
   },
 
   async call(options: CallOptions): Promise<ProviderResult> {
+    const modelId = options.geminiModels?.[0] ?? AI_MODEL
     try {
-      const result = await callGemini(API_KEY as string, options)
+      const result = await callGemini(API_KEY as string, modelId, options)
       return {
         text: result.text,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
         provider: 'gemini',
-        model: AI_MODEL,
+        model: modelId,
       }
     } catch (error) {
       if (error instanceof GeminiError) {
@@ -54,4 +55,54 @@ export const geminiProvider: Provider = {
       throw new ProviderError('gemini', 'upstream', (error as Error).message, null)
     }
   },
+}
+
+import type { CatalogModel } from './openrouter.ts'
+
+export async function fetchGeminiCatalog(): Promise<CatalogModel[]> {
+  // A API do Gemini até tem um endpoint de modelos, mas a resposta é barulhenta
+  // e inclui modelos antigos ou sem suporte a JSON schema estruturado. Como a lista é
+  // pequena e os modelos exatos foram pedidos, fixamos aqui.
+  return [
+    {
+      id: 'gemini-3.5-flash',
+      name: 'Gemini 3.5 Flash',
+      contextLength: 250000,
+      pricePromptPerMillion: 0,
+      priceCompletionPerMillion: 0,
+      supportsStructured: true,
+    },
+    {
+      id: 'gemini-3.6-flash',
+      name: 'Gemini 3.6 Flash',
+      contextLength: 250000,
+      pricePromptPerMillion: 0,
+      priceCompletionPerMillion: 0,
+      supportsStructured: true,
+    },
+    {
+      id: 'gemini-3.5-flash-lite',
+      name: 'Gemini 3.5 Flash Lite',
+      contextLength: 250000,
+      pricePromptPerMillion: 0,
+      priceCompletionPerMillion: 0,
+      supportsStructured: true,
+    },
+    {
+      id: 'gemini-3.7-flash',
+      name: 'Gemini 3.7 Flash',
+      contextLength: 250000,
+      pricePromptPerMillion: 0,
+      priceCompletionPerMillion: 0,
+      supportsStructured: true,
+    },
+    {
+      id: 'gemini-3.1-flash-lite',
+      name: 'Gemini 3.1 Flash Lite',
+      contextLength: 250000,
+      pricePromptPerMillion: 0,
+      priceCompletionPerMillion: 0,
+      supportsStructured: true,
+    },
+  ]
 }

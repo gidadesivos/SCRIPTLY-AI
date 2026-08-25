@@ -65,13 +65,13 @@ interface CallOptions {
   thinkingLevel?: 'low'
 }
 
-async function callOnce(apiKey: string, options: CallOptions): Promise<GeminiResult> {
+async function callOnce(apiKey: string, modelId: string, options: CallOptions): Promise<GeminiResult> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   try {
     const response = await fetch(
-      `${GEMINI_API_BASE}/models/${AI_MODEL}:generateContent`,
+      `${GEMINI_API_BASE}/models/${modelId}:generateContent`,
       {
         method: 'POST',
         headers: {
@@ -140,12 +140,12 @@ async function callOnce(apiKey: string, options: CallOptions): Promise<GeminiRes
 }
 
 /** Chama o Gemini com retry exponencial apenas em falhas transitórias (429/5xx). */
-export async function callGemini(apiKey: string, options: CallOptions): Promise<GeminiResult> {
+export async function callGemini(apiKey: string, modelId: string, options: CallOptions): Promise<GeminiResult> {
   let lastError: GeminiError | null = null
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await callOnce(apiKey, options)
+      return await callOnce(apiKey, modelId, options)
     } catch (error) {
       lastError = error as GeminiError
       if (!lastError.retryable || attempt === MAX_RETRIES) break

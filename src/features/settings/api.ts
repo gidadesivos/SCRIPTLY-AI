@@ -120,6 +120,7 @@ export async function listWorkspaceModels(workspaceId: string): Promise<Workspac
 
 export async function addWorkspaceModel(input: {
   workspaceId: string
+  provider: 'openrouter' | 'groq'
   modelId: string
   label: string
   position: number
@@ -128,7 +129,7 @@ export async function addWorkspaceModel(input: {
     .from('workspace_ai_models')
     .insert({
       workspace_id: input.workspaceId,
-      provider: 'openrouter',
+      provider: input.provider,
       model_id: input.modelId,
       label: input.label,
       position: input.position,
