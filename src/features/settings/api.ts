@@ -120,7 +120,7 @@ export async function listWorkspaceModels(workspaceId: string): Promise<Workspac
 
 export async function addWorkspaceModel(input: {
   workspaceId: string
-  provider: 'openrouter' | 'groq'
+  provider: 'openrouter' | 'groq' | 'gemini'
   modelId: string
   label: string
   position: number
