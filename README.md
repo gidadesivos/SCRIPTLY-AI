@@ -23,3 +23,5 @@ npm run dev
   manualmente (projeto Supabase, Google OAuth).
 - `PROGRESS.md` — o que está pronto, como testar, dívidas conhecidas.
 - `supabase/migrations/` — schema do banco, versionado.
+
+*(Forçando deploy Vercel)*
