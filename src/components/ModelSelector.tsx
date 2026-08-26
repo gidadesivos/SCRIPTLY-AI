@@ -47,20 +47,34 @@ export function ModelSelector() {
     return map
   }, [availableModels])
 
-  // Determinar status do provedor ativo
-  const activeProviderOk = useMemo(() => {
-    if (!activeModel) return true // Automático sempre "ok"
-    if (!status.data) return null // Ainda verificando
-    return status.data.providers.includes(activeModel.provider)
-  }, [activeModel, status.data])
+  /**
+   * Estado do provedor ativo.
+   *
+   * 'desconhecido' existe separado de 'verificando' de propósito: a consulta
+   * roda com retry desligado, então quando ela falha o resultado nunca chega.
+   * Tratar isso como "ainda verificando" deixava o ponto amarelo e a legenda
+   * "Verificando disponibilidade" na tela para sempre — o app afirmando que
+   * está checando algo que já desistiu de checar.
+   */
+  const providerState = useMemo<'ok' | 'fora' | 'verificando' | 'desconhecido'>(() => {
+    if (!activeModel) return 'ok' // Automático: a cascata decide, não há o que furar.
+    if (status.isError) return 'desconhecido'
+    if (!status.data) return 'verificando'
+    return status.data.providers.includes(activeModel.provider) ? 'ok' : 'fora'
+  }, [activeModel, status.data, status.isError])
 
-  // Dot colorido
-  const dotColor =
-    activeProviderOk === null
-      ? 'bg-yellow-400' // Verificando
-      : activeProviderOk
-        ? 'bg-emerald-400' // Disponível
-        : 'bg-red-400' // Indisponível
+  // Tokens do tema, não cores cruas da paleta: o resto do app inteiro usa
+  // token, e bg-emerald-400 não acompanha claro/escuro.
+  const DOT: Record<typeof providerState, { color: string; label: string }> = {
+    ok: { color: 'bg-success', label: 'Modelo disponível' },
+    fora: { color: 'bg-destructive', label: 'Modelo indisponível' },
+    verificando: { color: 'bg-warning', label: 'Verificando disponibilidade' },
+    desconhecido: {
+      color: 'bg-muted-foreground',
+      label: 'Não foi possível verificar a disponibilidade',
+    },
+  }
+  const dot = DOT[providerState]
 
   // Label curta para o botão
   const displayLabel = activeModel?.label || 'Automático'
@@ -90,14 +104,9 @@ export function ModelSelector() {
           className="h-8 gap-1.5 px-2 text-xs font-medium"
         >
           <span
-            className={cn('h-2 w-2 shrink-0 rounded-full', dotColor)}
-            aria-label={
-              activeProviderOk === null
-                ? 'Verificando disponibilidade'
-                : activeProviderOk
-                  ? 'Modelo disponível'
-                  : 'Modelo indisponível'
-            }
+            className={cn('h-2 w-2 shrink-0 rounded-full', dot.color)}
+            title={dot.label}
+            aria-label={dot.label}
           />
           <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="hidden sm:inline">{shortLabel}</span>

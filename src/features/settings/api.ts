@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { NotAllowedError } from '@/features/scripts/api'
+import type { ProviderName } from '@/lib/ai'
 
 export interface PlanUsage {
   plan: string
@@ -120,7 +121,7 @@ export async function listWorkspaceModels(workspaceId: string): Promise<Workspac
 
 export async function addWorkspaceModel(input: {
   workspaceId: string
-  provider: 'openrouter' | 'groq'
+  provider: ProviderName
   modelId: string
   label: string
   position: number

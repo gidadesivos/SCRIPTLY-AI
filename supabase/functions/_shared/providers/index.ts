@@ -1,7 +1,13 @@
 import { geminiProvider } from './gemini.ts'
 import { openRouterProvider } from './openrouter.ts'
 import { groqProvider } from './groq.ts'
-import { ProviderError, type CallOptions, type Provider, type ProviderResult } from './types.ts'
+import {
+  ProviderError,
+  type CallOptions,
+  type Provider,
+  type ProviderName,
+  type ProviderResult,
+} from './types.ts'
 
 export * from './types.ts'
 export { fetchOpenRouterQuota, fetchOpenRouterCatalog, type CatalogModel } from './openrouter.ts'

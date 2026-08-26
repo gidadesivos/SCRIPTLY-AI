@@ -479,8 +479,16 @@ Deno.serve(async (req) => {
         userId,
         generationType: body.operation,
         promptVersion,
-        model: AI_MODEL,
-        provider: providerError?.provider ?? 'gemini',
+        /*
+         * O modelo que de fato falhou, não o padrão.
+         *
+         * Gravar AI_MODEL aqui fazia toda falha aparecer como se fosse do
+         * Gemini padrão — inclusive as do OpenRouter e do Groq. O painel de
+         * consumo por modelo ficava certo no sucesso e mentiroso no erro,
+         * que é exatamente onde importa saber qual modelo derrubou.
+         */
+        model: explicitModel?.modelId ?? AI_MODEL,
+        provider: providerError?.provider ?? explicitModel?.provider ?? 'gemini',
         // Cota esgotada ganha status próprio: no painel ela precisa aparecer
         // separada de JSON inválido e de modelo fora do ar.
         status: isInvalidOutput
@@ -505,13 +513,21 @@ Deno.serve(async (req) => {
         `[ai-generate] cadeia esgotada (${providerError.provider}/${providerError.kind}):`,
         providerError.message,
       )
-      return errorResponse(
-        'ai_unavailable',
-        503,
+      /*
+       * Modelo escolhido à mão não tem rede de segurança: callExplicit não cai
+       * para o próximo provedor de propósito. Então quando a falha é de
+       * configuração — modelo que não existe, chave sem acesso a ele — o
+       * usuário fica travado até trocar a escolha, e a mensagem precisa dizer
+       * isso. Sem esta linha ele via só o erro cru do fornecedor.
+       */
+      const detail =
         providerError.kind === 'quota'
           ? 'A cota da IA acabou em todos os provedores configurados.'
-          : providerError.message,
-      )
+          : explicitModel && providerError.kind === 'config'
+            ? `O modelo "${explicitModel.modelId}" não respondeu: ${providerError.message}. Escolha outro modelo no seletor, ou volte para Automático.`
+            : providerError.message
+
+      return errorResponse('ai_unavailable', 503, detail)
     }
 
     console.error('Erro inesperado em ai-generate:', (error as Error).message)

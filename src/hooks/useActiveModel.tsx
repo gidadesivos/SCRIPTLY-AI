@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listWorkspaceModels, type WorkspaceModel } from '@/features/settings/api'
+import type { ProviderName } from '@/lib/ai'
 import { useActiveWorkspaceOptional } from '@/features/workspaces/hooks/useActiveWorkspace'
 
 /** Provedor + modelo escolhido pelo usuário. */
 export interface ActiveModelChoice {
-  provider: 'gemini' | 'openrouter' | 'groq'
+  provider: ProviderName
   modelId: string
   label: string
 }

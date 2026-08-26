@@ -8,6 +8,8 @@ import {
   useActiveWorkspace,
 } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { ActiveBrandProvider, useActiveBrand } from '@/features/brands/hooks/useActiveBrand'
+import { ActiveModelProvider } from '@/hooks/useActiveModel'
+import { ModelSelector } from '@/components/ModelSelector'
 import {
   Select,
   SelectContent,
@@ -46,6 +48,10 @@ function CampaignsShellInner() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* A IA de copy dos anúncios usa o modelo ativo. Sem o seletor aqui
+              ele ficava valendo sem aparecer, e só dava para trocar voltando
+              para o Scriptly. */}
+          <ModelSelector />
           {brands.length > 0 && (
             <Select value={activeBrand?.id ?? ''} onValueChange={setActiveBrandId}>
               <SelectTrigger className="h-10 w-44" aria-label="Marca ativa">
@@ -81,7 +87,15 @@ export function CampaignsShell() {
   return (
     <ActiveWorkspaceProvider>
       <ActiveBrandProvider>
-        <CampaignsShellInner />
+        {/*
+         * O ActiveModelProvider precisa estar aqui, e não só no AppShell: o
+         * planejador tem árvore de contexto própria, e o AdCopyGenerator lê o
+         * modelo ativo. Sem este provider, abrir a IA de copy num nó de anúncio
+         * derrubava a tela inteira — contexto não atravessa rotas irmãs.
+         */}
+        <ActiveModelProvider>
+          <CampaignsShellInner />
+        </ActiveModelProvider>
       </ActiveBrandProvider>
     </ActiveWorkspaceProvider>
   )

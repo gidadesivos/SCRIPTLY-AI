@@ -1,9 +1,18 @@
 import { supabase } from '@/lib/supabase'
 import { strings } from '@/i18n/pt-BR'
 
+/**
+ * Quem atende a chamada de IA. Espelha o ProviderName da Edge Function.
+ *
+ * Fica num lugar só de propósito: esta união estava repetida em quatro
+ * arquivos com DUAS definições diferentes, e a divergência quebrou o build —
+ * o seletor oferecia 'gemini' para uma função que só aceitava os outros dois.
+ */
+export type ProviderName = 'gemini' | 'openrouter' | 'groq'
+
 /** Referência ao modelo explícito escolhido pelo usuário. */
 export interface ModelRef {
-  provider: 'gemini' | 'openrouter' | 'groq'
+  provider: ProviderName
   modelId: string
 }
 
@@ -284,6 +293,6 @@ export interface CatalogModel {
 }
 
 /** Catálogo de modelos. Passa pela Edge Function: a chave não sai do servidor. */
-export function listModels(workspaceId: string, provider: 'openrouter' | 'groq' | 'gemini') {
+export function listModels(workspaceId: string, provider: ProviderName) {
   return invoke<{ models: CatalogModel[] }>({ operation: 'listModels', workspaceId, provider })
 }

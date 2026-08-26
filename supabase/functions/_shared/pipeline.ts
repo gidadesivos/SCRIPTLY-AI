@@ -40,7 +40,15 @@ export interface RunOptions<T> {
   systemPrompt?: string
   userPrompt: string
   geminiSchema: GeminiSchema
-  zodSchema: z.ZodType<T>
+  /**
+   * A entrada é `unknown` de propósito.
+   *
+   * `z.ZodType<T>` exige que entrada e saída sejam iguais, e vários schemas
+   * daqui usam transform/default — o hookScore, por exemplo, entra como número
+   * solto e sai normalizado. O que chega aqui é o resultado de um JSON.parse,
+   * que é `unknown` de fato; declarar isso deixa o tipo dizer a verdade.
+   */
+  zodSchema: z.ZodType<T, z.ZodTypeDef, unknown>
   /** Modelos que o workspace escolheu para o OpenRouter. */
   openRouterModels?: string[]
   groqModels?: string[]

@@ -18,6 +18,12 @@ export interface CallOptions {
    */
   openRouterModels?: string[]
   groqModels?: string[]
+  /**
+   * Idem para o Gemini. Estava faltando: gemini.ts e callExplicit já liam e
+   * escreviam este campo, e só não quebrou porque o deploy do Supabase empacota
+   * com esbuild, que apaga tipo sem conferir.
+   */
+  geminiModels?: string[]
 }
 
 export interface ProviderResult {

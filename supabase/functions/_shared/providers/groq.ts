@@ -1,5 +1,4 @@
 import { GROQ_MODELS, REQUEST_TIMEOUT_MS } from '../ai-config.ts'
-import type { GeminiSchema } from '../gemini.ts'
 import { ProviderError, type CallOptions, type Provider, type ProviderResult } from './types.ts'
 
 const API_URL = 'https://api.groq.com/openai/v1/chat/completions'
@@ -14,28 +13,7 @@ interface ChatResponse {
   error?: { message?: string; code?: string | number }
 }
 
-function toJsonSchema(schema: GeminiSchema): Record<string, unknown> {
-  const out: Record<string, unknown> = { type: schema.type.toLowerCase() }
-
-  if (schema.description) out.description = schema.description
-  if (schema.enum) out.enum = schema.enum
-  if (schema.items) out.items = toJsonSchema(schema.items)
-
-  if (schema.properties) {
-    const properties: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(schema.properties)) {
-      properties[key] = toJsonSchema(value)
-    }
-    out.properties = properties
-
-    out.required = Object.keys(schema.properties)
-    out.additionalProperties = false
-  }
-
-  return out
-}
-
-function classify(status: number, message: string): ProviderError['kind'] {
+function classify(status: number): ProviderError['kind'] {
   if (status === 402) return 'quota'
   if (status === 429) return 'rate_limit'
   if (status === 401 || status === 403 || status === 404 || status === 400) return 'config'
@@ -51,16 +29,25 @@ export const groqProvider: Provider = {
   },
 
   async call(options: CallOptions): Promise<ProviderResult> {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-
     const modelsToTry = options.groqModels?.length ? options.groqModels : GROQ_MODELS
 
     // O Groq não tem fallback automático em array no backend igual o OpenRouter.
     // Temos que fazer o loop manual na lista de modelos.
     for (let i = 0; i < modelsToTry.length; i++) {
       const currentModel = modelsToTry[i]
-      
+
+      /*
+       * Um controller e um timer POR TENTATIVA, e não um para o loop inteiro.
+       *
+       * Compartilhado, o relógio do primeiro modelo continuava correndo no
+       * segundo: se o primeiro gastasse quase todo o tempo antes de falhar, o
+       * seguinte era abortado em segundos — e a cascata, que existe justamente
+       * para salvar a chamada, virava uma sequência de timeouts. O clearTimeout
+       * no finally é o par disso: sem ele cada geração deixava um timer vivo.
+       */
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
       try {
         const apiKey = Deno.env.get('GROQ_API_KEY')
         const response = await fetch(API_URL, {
@@ -78,7 +65,13 @@ export const groqProvider: Provider = {
             ],
             temperature: options.temperature,
             max_tokens: options.maxOutputTokens,
-            // Groq suporta json_object na maioria dos modelos
+            /*
+             * json_object, não json_schema: o Groq garante JSON sintaticamente
+             * válido, mas NÃO obriga o formato. Quem cobra o formato é o Zod do
+             * pipeline, com a tentativa de reparo. Por isso os prompts dizem
+             * "objeto JSON válido" — sem essa palavra no texto, este modo
+             * recusa a requisição.
+             */
             response_format: { type: 'json_object' },
           }),
         })
@@ -87,7 +80,7 @@ export const groqProvider: Provider = {
           const body = (await response.json().catch(() => null)) as ChatResponse | null
           const message = body?.error?.message ?? `Groq respondeu ${response.status}`
           
-          const kind = classify(response.status, message)
+          const kind = classify(response.status)
           // Se for erro de rate limit ou upstream, tenta o próximo modelo da cascata
           if ((kind === 'rate_limit' || kind === 'upstream') && i < modelsToTry.length - 1) {
             continue
@@ -105,7 +98,7 @@ export const groqProvider: Provider = {
 
         if (body.error) {
           const errorCode = typeof body.error.code === 'number' ? body.error.code : 500
-          const kind = classify(errorCode, body.error.message ?? '')
+          const kind = classify(errorCode)
           if ((kind === 'rate_limit' || kind === 'upstream') && i < modelsToTry.length - 1) {
             continue
           }
@@ -141,10 +134,12 @@ export const groqProvider: Provider = {
           throw new ProviderError('groq', 'timeout', 'Tempo esgotado no Groq.', null)
         }
         if (error instanceof ProviderError) throw error
-        
+
         if (i === modelsToTry.length - 1) {
           throw new ProviderError('groq', 'upstream', (error as Error).message, null)
         }
+      } finally {
+        clearTimeout(timeout)
       }
     }
     
@@ -187,10 +182,13 @@ export async function fetchGroqCatalog(): Promise<CatalogModel[]> {
       return {
         id: model.id,
         name: model.id, // Groq devolve nome no ID
-        contextLength: model.context_window ?? 8192,
-        pricePromptPerMillion: 0,
-        priceCompletionPerMillion: 0,
-        supportsStructured: true,
+        contextLength: model.context_window ?? null,
+        // O catálogo do Groq não publica preço nem suporte a schema. null é o
+        // valor honesto para "não informado" — dizer 0 e true aqui inventaria
+        // uma garantia que ninguém deu.
+        pricePromptPerMillion: null,
+        priceCompletionPerMillion: null,
+        supportsStructured: null,
       }
     })
 }

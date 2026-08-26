@@ -13,7 +13,7 @@ import {
   reorderWorkspaceModels,
   type WorkspaceModel,
 } from '@/features/settings/api'
-import { listModels, type CatalogModel } from '@/lib/ai'
+import { listModels, type CatalogModel, type ProviderName } from '@/lib/ai'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { canDeleteScripts } from '@/lib/permissions'
 import { strings } from '@/i18n/pt-BR'
@@ -25,7 +25,16 @@ import { strings } from '@/i18n/pt-BR'
  * Por isso a tela diz qual estado está valendo em vez de mostrar uma lista
  * vazia que pareceria "nada configurado, nada funciona".
  */
-export function ModelPicker({ provider }: { provider: 'openrouter' | 'groq' | 'gemini' }) {
+/** Rótulo e secret de cada porta. Um ternário de dois casos para três
+ *  provedores fazia a aba do Gemini se anunciar como "Modelos do Groq". */
+const PROVIDER_INFO: Record<ProviderName, { label: string; secret: string }> = {
+  gemini: { label: 'Gemini', secret: 'GEMINI_API_KEY' },
+  openrouter: { label: 'OpenRouter', secret: 'OPENROUTER_API_KEY' },
+  groq: { label: 'Groq', secret: 'GROQ_API_KEY' },
+}
+
+export function ModelPicker({ provider }: { provider: ProviderName }) {
+  const info = PROVIDER_INFO[provider]
   const { activeWorkspace } = useActiveWorkspace()
   const workspaceId = activeWorkspace?.id ?? ''
   const canEdit = canDeleteScripts(activeWorkspace?.role)
@@ -33,6 +42,13 @@ export function ModelPicker({ provider }: { provider: 'openrouter' | 'groq' | 'g
 
   const [search, setSearch] = useState('')
   const [isBrowsing, setIsBrowsing] = useState(false)
+  /*
+   * Começa ligado porque a maioria vem aqui procurando o que não custa, mas é
+   * um controle à vista e não um filtro escondido no código: antes, todo modelo
+   * pago sumia da lista sem explicação, e quem tinha crédito no OpenRouter não
+   * entendia por que não achava o modelo que já estava pagando.
+   */
+  const [freeOnly, setFreeOnly] = useState(true)
 
   const chosen = useQuery({
     queryKey: ['workspace-models', workspaceId],
@@ -95,7 +111,9 @@ export function ModelPicker({ provider }: { provider: 'openrouter' | 'groq' | 'g
     return all
       .filter((model) => !chosenIds.has(model.id))
       .filter(
-        (model) => model.pricePromptPerMillion === 0 && model.priceCompletionPerMillion === 0
+        (model) =>
+          !freeOnly ||
+          (model.pricePromptPerMillion === 0 && model.priceCompletionPerMillion === 0),
       )
       .filter(
         (model) =>
@@ -103,7 +121,7 @@ export function ModelPicker({ provider }: { provider: 'openrouter' | 'groq' | 'g
       )
       .slice(0, 40)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog.data, search, chosen.data])
+  }, [catalog.data, search, chosen.data, freeOnly])
 
   function move(index: number, direction: -1 | 1) {
     const next = [...models]
@@ -116,9 +134,11 @@ export function ModelPicker({ provider }: { provider: 'openrouter' | 'groq' | 'g
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <p className="text-sm font-medium">Modelos do {provider === 'openrouter' ? 'OpenRouter' : 'Groq'}</p>
+        <p className="text-sm font-medium">Modelos do {info.label}</p>
         <p className="text-xs text-muted-foreground">
-          Tentados nesta ordem quando o Gemini não atende. Sem escolha, vale a lista padrão.
+          {provider === 'gemini'
+            ? 'Tentados nesta ordem. Sem escolha, vale o modelo padrão.'
+            : `Tentados nesta ordem quando o provedor anterior não atende. Sem escolha, vale a lista padrão.`}
         </p>
       </div>
 
@@ -172,6 +192,16 @@ export function ModelPicker({ provider }: { provider: 'openrouter' | 'groq' | 'g
                 />
               </div>
 
+              <label className="flex w-fit cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-[hsl(var(--primary))]"
+                  checked={freeOnly}
+                  onChange={(event) => setFreeOnly(event.target.checked)}
+                />
+                Mostrar só modelos sem custo
+              </label>
+
               {catalog.isPending && (
                 <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -183,7 +213,7 @@ export function ModelPicker({ provider }: { provider: 'openrouter' | 'groq' | 'g
                 <div className="flex flex-col items-start gap-1.5 py-2 text-xs text-warning">
                   <div className="flex items-center gap-1.5">
                     <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
-                    Não consegui ler o catálogo. Confira se {provider === 'openrouter' ? 'OPENROUTER_API_KEY' : provider === 'groq' ? 'GROQ_API_KEY' : 'GEMINI_API_KEY'} está nos secrets.
+                    Não consegui ler o catálogo. Confira se {info.secret} está nos secrets.
                   </div>
                   <span className="text-muted-foreground">{catalog.error instanceof Error ? catalog.error.message : String(catalog.error)}</span>
                 </div>
