@@ -80,3 +80,29 @@ export const META_CTAS: Option[] = [
   { value: 'download', label: 'Baixar' },
   { value: 'subscribe', label: 'Assinar' },
 ]
+
+export const PLATFORMS: Option[] = [
+  { value: 'meta', label: 'Meta Ads' },
+  { value: 'google', label: 'Google Ads' },
+  { value: 'tiktok', label: 'TikTok Ads' },
+]
+
+export const FUNNELS: Option[] = [
+  { value: 'topo', label: 'Topo' },
+  { value: 'meio', label: 'Meio' },
+  { value: 'fundo', label: 'Fundo' },
+  { value: 'remarketing', label: 'Remarketing' },
+  { value: 'retencao', label: 'Retenção' },
+]
+
+export const STATUS_OPTIONS: Option[] = [
+  { value: 'draft', label: 'Rascunho' },
+  { value: 'planning', label: 'Planejamento' },
+  { value: 'review', label: 'Em revisão' },
+  { value: 'changes_requested', label: 'Ajustes solicitados' },
+  { value: 'approved', label: 'Aprovado' },
+  { value: 'active', label: 'Ativo' },
+  { value: 'paused', label: 'Pausado' },
+  { value: 'finished', label: 'Finalizado' },
+  { value: 'archived', label: 'Arquivado' },
+]

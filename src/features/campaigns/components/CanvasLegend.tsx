@@ -25,9 +25,9 @@ export function CanvasLegend() {
         {LEVELS.map(({ type, icon: Icon }) => (
           <li key={type} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span
-              className={cn('flex h-4 w-4 items-center justify-center rounded', LEVEL_STYLES[type].band)}
+              className={cn('flex h-4 w-4 items-center justify-center rounded', LEVEL_STYLES[type]?.band)}
             >
-              <Icon className={cn('h-2.5 w-2.5', LEVEL_STYLES[type].text)} />
+              <Icon className={cn('h-2.5 w-2.5', LEVEL_STYLES[type]?.text)} />
             </span>
             {NODE_LABELS[type]}
           </li>

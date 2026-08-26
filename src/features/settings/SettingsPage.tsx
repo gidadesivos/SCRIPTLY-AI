@@ -1,74 +1,52 @@
-import { Monitor, Moon, Sun } from 'lucide-react'
-import { PageHeader } from '@/components/PageHeader'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/features/auth/hooks/useAuth'
-import { useTheme } from '@/features/settings/hooks/useTheme'
 import { Diagnostics } from '@/features/settings/components/Diagnostics'
 import { PlanCard } from '@/features/settings/components/PlanCard'
 import { ProvidersCard } from '@/features/settings/components/ProvidersCard'
 import { strings } from '@/i18n/pt-BR'
-import { cn } from '@/lib/utils'
-
-const THEME_OPTIONS = [
-  { value: 'light' as const, label: strings.settings.themeLight, icon: Sun },
-  { value: 'dark' as const, label: strings.settings.themeDark, icon: Moon },
-  { value: 'system' as const, label: strings.settings.themeSystem, icon: Monitor },
-]
 
 export function SettingsPage() {
   const { user } = useAuth()
-  const { theme, setTheme } = useTheme()
   const displayName = (user?.user_metadata?.full_name as string | undefined) ?? user?.email ?? ''
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
+  const initials = displayName.slice(0, 2).toUpperCase()
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={strings.settings.title} />
+    <div className="flex h-full flex-col bg-[#0B0B10] text-[#EDEDF2]">
+      {/* Topbar */}
+      <div className="flex h-[52px] shrink-0 items-center gap-[12px] border-b border-[#1E1E28] bg-[#0E0E14] px-4">
+        <h1 className="m-0 font-sans text-[14px] font-semibold tracking-[-0.01em]">
+          {strings.settings.title}
+        </h1>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{strings.settings.profile}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center gap-3">
-          <Avatar className="h-12 w-12">
-            <AvatarImage src={avatarUrl} alt={displayName} />
-            <AvatarFallback>{displayName.slice(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="text-sm font-medium">{displayName}</p>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto px-8 py-6">
+        <div className="mx-auto w-full max-w-3xl space-y-8">
+          {/* Profile Card */}
+          <section className="flex flex-col gap-4 rounded-xl border border-[#1E1E28] bg-[#12121A] p-5">
+            <h2 className="font-sans text-[16px] font-semibold">{strings.settings.profile}</h2>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#3A2E63] bg-[#241E3D] font-mono text-[14px] font-semibold text-[#B9A6FF]">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+                ) : (
+                  initials
+                )}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-sans text-[14px] font-medium text-[#EDEDF2]">{displayName}</span>
+                <span className="font-sans text-[12px] text-[#8C8CA0]">{user?.email}</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Other Settings Components */}
+          <div className="settings-cards-wrapper space-y-8 [&_.border-border]:border-[#1E1E28] [&_.bg-card]:bg-[#12121A] [&_.text-card-foreground]:text-[#EDEDF2] [&_.text-muted-foreground]:text-[#8C8CA0]">
+            <PlanCard />
+            <ProvidersCard />
+            <Diagnostics />
           </div>
-        </CardContent>
-      </Card>
-
-      <PlanCard />
-
-      <ProvidersCard />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{strings.settings.theme}</CardTitle>
-          <CardDescription>Escolha como o Scriptly AI aparece para você.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-2">
-          {THEME_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              variant={theme === option.value ? 'default' : 'outline'}
-              size="sm"
-              className={cn('gap-2')}
-              onClick={() => setTheme(option.value)}
-            >
-              <option.icon className="h-4 w-4" />
-              {option.label}
-            </Button>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Diagnostics />
+        </div>
+      </div>
     </div>
   )
 }

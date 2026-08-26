@@ -1,7 +1,5 @@
 import type { CampaignNode } from '@/features/campaigns/types'
 
-const COLUMN_WIDTH = 300
-const ROW_HEIGHT = 220
 
 /**
  * Posiciona a árvore quando o nó ainda não tem lugar próprio.
@@ -11,7 +9,12 @@ const ROW_HEIGHT = 220
  * ganha posição salva e deixa de ser reposicionado; isto vale só para o
  * primeiro desenho e para nós recém-criados.
  */
-export function autoLayout(nodes: CampaignNode[]): Map<string, { x: number; y: number }> {
+export type LayoutMode = 'TB' | 'LR' | 'compact'
+
+export function autoLayout(nodes: CampaignNode[], mode: LayoutMode = 'TB'): Map<string, { x: number; y: number }> {
+  const colW = mode === 'compact' ? 240 : 300
+  const rowH = mode === 'compact' ? 140 : 220
+
   const positions = new Map<string, { x: number; y: number }>()
   const childrenOf = new Map<string | null, CampaignNode[]>()
 
@@ -33,16 +36,18 @@ export function autoLayout(nodes: CampaignNode[]): Map<string, { x: number; y: n
     const children = childrenOf.get(node.id) ?? []
 
     if (children.length === 0) {
-      const x = nextColumn * COLUMN_WIDTH
+      const pos = nextColumn * colW
       nextColumn += 1
-      positions.set(node.id, { x, y: depth * ROW_HEIGHT })
-      return x
+      const coord = mode === 'LR' ? { x: depth * rowH, y: pos } : { x: pos, y: depth * rowH }
+      positions.set(node.id, coord)
+      return pos
     }
 
-    const childXs = children.map((child) => place(child, depth + 1))
-    const x = (childXs[0] + childXs[childXs.length - 1]) / 2
-    positions.set(node.id, { x, y: depth * ROW_HEIGHT })
-    return x
+    const childPoss = children.map((child) => place(child, depth + 1))
+    const pos = (childPoss[0] + childPoss[childPoss.length - 1]) / 2
+    const coord = mode === 'LR' ? { x: depth * rowH, y: pos } : { x: pos, y: depth * rowH }
+    positions.set(node.id, coord)
+    return pos
   }
 
   for (const root of childrenOf.get(null) ?? []) {
