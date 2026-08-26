@@ -14,7 +14,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import {
   CampaignNodeCard,
-  LEVEL_STYLES,
+  styleFor,
   summarize,
   type CampaignNodePayload,
 } from '@/features/campaigns/components/CampaignNodeCard'
@@ -114,7 +114,7 @@ export function CampaignCanvas({
           sourceHandle: 'child',
           targetHandle: 'parent',
           type: 'smoothstep',
-          style: { stroke: parent ? LEVEL_STYLES[parent.type].hex : undefined, strokeWidth: 2 },
+          style: { stroke: parent ? styleFor(parent.type).hex : undefined, strokeWidth: 2 },
         }
       })
 
@@ -214,7 +214,7 @@ export function CampaignCanvas({
         pannable
         zoomable
         className="hidden md:block"
-        nodeColor={(node) => LEVEL_STYLES[(node.data as CampaignNodePayload).type].hex}
+        nodeColor={(node) => styleFor((node.data as CampaignNodePayload).type).hex}
         nodeStrokeWidth={0}
         maskColor="hsl(var(--muted) / 0.6)"
       />

@@ -34,6 +34,31 @@ const ICONS: Record<CampaignNodeType, typeof Target> = {
 }
 
 /**
+ * Aparência de um nó cujo tipo não é nenhum dos três.
+ *
+ * Não deveria existir — a coluna é um enum de três valores. Mas ele já
+ * aconteceu em produção, e o custo era desproporcional: LEVEL_STYLES[tipo]
+ * voltava undefined, o acesso a .border estourava e a tela INTEIRA do plano
+ * morria em "Unexpected Application Error". Uma linha estranha derrubava
+ * campanhas, conjuntos e anúncios que estavam perfeitos.
+ *
+ * Agora ela vira um nó cinza que se identifica como quebrado. O plano continua
+ * legível, e o nó problemático fica apontado em vez de anônimo.
+ */
+const UNKNOWN_STYLE = {
+  band: 'bg-muted',
+  text: 'text-muted-foreground',
+  ring: 'ring-muted-foreground/40',
+  border: 'border-dashed border-muted-foreground/40',
+  hex: 'hsl(240 5% 65%)',
+}
+
+/** Estilo do nível, ou o de "tipo desconhecido" — nunca undefined. */
+export function styleFor(type: string | undefined) {
+  return LEVEL_STYLES[type as CampaignNodeType] ?? UNKNOWN_STYLE
+}
+
+/**
  * Uma cor por nível da hierarquia do Meta.
  *
  * Quem monta campanha lê a árvore de relance e precisa saber o nível antes de
@@ -72,9 +97,10 @@ export const LEVEL_STYLES: Record<
 
 function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
   const payload = data as CampaignNodePayload
-  const Icon = ICONS[payload.type]
-  const style = LEVEL_STYLES[payload.type]
-  const childType = ALLOWED_CHILD[payload.type]
+  const isKnownType = payload.type in LEVEL_STYLES
+  const Icon = ICONS[payload.type] ?? TriangleAlert
+  const style = styleFor(payload.type)
+  const childType = isKnownType ? ALLOWED_CHILD[payload.type] : null
   const hasIssues = payload.issues.length > 0
 
   return (
@@ -125,7 +151,7 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
       <div className={cn('flex items-center gap-1.5 px-3 py-1.5', style.band)}>
         <Icon className={cn('h-3.5 w-3.5 shrink-0', style.text)} />
         <span className={cn('text-[10px] font-semibold uppercase tracking-wider', style.text)}>
-          {NODE_LABELS[payload.type]}
+          {NODE_LABELS[payload.type] ?? `Tipo desconhecido (${String(payload.type)})`}
         </span>
 
         {hasIssues && (
@@ -206,7 +232,7 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
             variant="ghost"
             size="icon"
             className="nodrag ml-auto h-7 w-7 text-muted-foreground hover:text-destructive"
-            aria-label={`Remover ${payload.label || NODE_LABELS[payload.type]}`}
+            aria-label={`Remover ${payload.label || NODE_LABELS[payload.type] || 'nó'}`}
             onClick={(event) => {
               event.stopPropagation()
               payload.onDelete(id)
