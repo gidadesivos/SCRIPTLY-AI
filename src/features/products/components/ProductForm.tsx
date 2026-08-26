@@ -43,8 +43,8 @@ function toFormValues(product: Product | undefined, fallbackBrandId: string): Pr
     problems_solved: product?.problems_solved ?? [],
     desires: product?.desires ?? [],
     objections: product?.objections ?? [],
-    faq: product?.faq ?? [],
-    links: product?.links ?? [],
+    faq: (product?.faq as { question: string; answer: string }[]) ?? [],
+    links: (product?.links as { label: string; url: string }[]) ?? [],
   }
 }
 

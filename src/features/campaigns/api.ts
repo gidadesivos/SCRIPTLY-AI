@@ -74,7 +74,7 @@ export async function getPlan(
       .returns<NodeRow[]>(),
     supabase
       .from('campaign_links')
-      .select('id, plan_id, source_id, target_id, label')
+      .select('id, workspace_id, plan_id, source_id, target_id, label, source_handle, target_handle, type, style')
       .eq('plan_id', planId)
       .returns<CampaignLink[]>(),
   ])
@@ -210,7 +210,7 @@ export async function deleteNode(id: string): Promise<void> {
  * um anúncio direto na campanha volta como erro do banco, não como sucesso
  * silencioso.
  */
-export async function reparentNode(id: string, parentId: string): Promise<void> {
+export async function reparentNode(id: string, parentId: string | null): Promise<void> {
   const { data, error } = await supabase
     .from('campaign_nodes')
     .update({ parent_id: parentId })
@@ -226,6 +226,11 @@ export async function createLink(input: {
   planId: string
   sourceId: string
   targetId: string
+  sourceHandle?: string
+  targetHandle?: string
+  type?: string
+  label?: string
+  style?: any
 }): Promise<CampaignLink> {
   const { data, error } = await supabase
     .from('campaign_links')
@@ -234,8 +239,13 @@ export async function createLink(input: {
       plan_id: input.planId,
       source_id: input.sourceId,
       target_id: input.targetId,
+      source_handle: input.sourceHandle,
+      target_handle: input.targetHandle,
+      type: input.type,
+      label: input.label,
+      style: input.style,
     })
-    .select('id, plan_id, source_id, target_id, label')
+    .select('id, plan_id, workspace_id, source_id, target_id, label, source_handle, target_handle, type, style')
     .single<CampaignLink>()
 
   if (error) throw error

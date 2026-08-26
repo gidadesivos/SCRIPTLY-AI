@@ -1,22 +1,40 @@
 import { z } from 'zod'
 
-export type CampaignNodeType = 'campanha' | 'conjunto' | 'anuncio'
+export type CampaignNodeType =
+  | 'campanha'
+  | 'conjunto'
+  | 'anuncio'
+  | 'publico'
+  | 'landing_page'
+  | 'whatsapp'
+  | 'oferta'
+  | 'pixel_evento'
+  | 'observacao'
+  | 'meta_kpi'
+  | 'nota'
+  | 'frame'
+  | 'texto'
+  | 'forma'
+  | 'formulario'
 
 /**
  * Qual tipo pode ficar dentro de qual. É a hierarquia do Meta, e a mesma regra
  * que o trigger do banco impõe (migration 0010) — aqui ela existe para a tela
  * não oferecer o que o banco vai recusar.
  */
-export const ALLOWED_CHILD: Record<CampaignNodeType, CampaignNodeType | null> = {
+export const ALLOWED_CHILD: Partial<Record<CampaignNodeType, CampaignNodeType | null>> = {
   campanha: 'conjunto',
   conjunto: 'anuncio',
-  anuncio: null,
+  anuncio: 'whatsapp',
 }
 
-export const NODE_LABELS: Record<CampaignNodeType, string> = {
+export const NODE_LABELS: Partial<Record<CampaignNodeType, string>> = {
   campanha: 'Campanha',
-  conjunto: 'Conjunto de anúncios',
+  conjunto: 'Conjunto',
   anuncio: 'Anúncio',
+  formulario: 'Formulário',
+  whatsapp: 'WhatsApp',
+  landing_page: 'Página',
 }
 
 /**
@@ -29,17 +47,44 @@ export const NODE_LABELS: Record<CampaignNodeType, string> = {
 const text = z.string().catch('')
 const num = z.number().nullable().catch(null)
 
-export const campanhaDataSchema = z.object({
+const taskSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  completed: z.boolean(),
+})
+
+export type CampaignTask = z.infer<typeof taskSchema>
+
+const baseDataSchema = z.object({
+  description: text,
+  status: z.string().catch('draft'),
+  assignee: text,
+  tags: z.array(z.string()).catch([]),
+  tasks: z.array(taskSchema).catch([]),
+  locked: z.boolean().catch(false),
+  favorite: z.boolean().catch(false),
+  notes: text,
+})
+
+export const campanhaDataSchema = baseDataSchema.extend({
   objective: text,
   buying_type: text,
   budget_level: text,
   budget_mode: text,
   budget_amount: num,
   ab_test: z.boolean().catch(false),
-  notes: text,
+  platform: text,
+  product: text,
+  service: text,
+  offer: text,
+  start_date: text,
+  end_date: text,
+  funnel: text,
+  planned_investment: num,
+  realized_investment: num,
 })
 
-export const conjuntoDataSchema = z.object({
+export const conjuntoDataSchema = baseDataSchema.extend({
   budget_mode: text,
   budget_amount: num,
   optimization_goal: text,
@@ -51,29 +96,47 @@ export const conjuntoDataSchema = z.object({
   placement_mode: text,
   placements: text,
   schedule: text,
-  notes: text,
+  gender: text,
+  language: text,
+  interests: z.array(z.string()).catch([]),
+  exclusions: text,
 })
 
-export const anuncioDataSchema = z.object({
+export const anuncioDataSchema = baseDataSchema.extend({
   format: text,
   primary_text: text,
   headline: text,
-  description: text,
   cta: text,
   destination: text,
-  notes: text,
+  angle: text,
+  hook: text,
+  whatsapp: text,
+  utm: text,
+})
+
+export const formularioDataSchema = baseDataSchema.extend({
+  title: text,
+  form_fields: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    label: z.string(),
+    required: z.boolean(),
+  })).catch([]),
 })
 
 export type CampanhaData = z.infer<typeof campanhaDataSchema>
 export type ConjuntoData = z.infer<typeof conjuntoDataSchema>
 export type AnuncioData = z.infer<typeof anuncioDataSchema>
-export type CampaignNodeData = CampanhaData | ConjuntoData | AnuncioData
+export type FormularioData = z.infer<typeof formularioDataSchema>
+export type CampaignNodeData = CampanhaData | ConjuntoData | AnuncioData | FormularioData | Record<string, any>
 
 export function parseNodeData(type: CampaignNodeType, raw: unknown): CampaignNodeData {
   const input = raw && typeof raw === 'object' ? raw : {}
   if (type === 'campanha') return campanhaDataSchema.parse(input)
   if (type === 'conjunto') return conjuntoDataSchema.parse(input)
-  return anuncioDataSchema.parse(input)
+  if (type === 'anuncio') return anuncioDataSchema.parse(input)
+  if (type === 'formulario') return formularioDataSchema.parse(input)
+  return input as Record<string, any>
 }
 
 export function emptyNodeData(type: CampaignNodeType): CampaignNodeData {
@@ -104,6 +167,10 @@ export interface CampaignLink {
   plan_id: string
   source_id: string
   target_id: string
+  source_handle?: string
+  target_handle?: string
+  type?: string
+  style?: Record<string, unknown>
   label: string
 }
 

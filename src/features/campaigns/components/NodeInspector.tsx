@@ -8,7 +8,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { FormField } from '@/components/FormField'
+import { TagInput } from '@/components/TagInput'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
+import { Plus, Trash2, Star } from 'lucide-react'
 import {
   META_AD_FORMATS,
   META_AUDIENCE_TYPES,
@@ -19,17 +30,19 @@ import {
   META_CTAS,
   META_OPTIMIZATION_GOALS,
   META_PLACEMENT_MODES,
+  PLATFORMS,
+  FUNNELS,
+  STATUS_OPTIONS
 } from '@/features/campaigns/meta-options'
 import { ScriptPicker } from '@/features/campaigns/components/ScriptPicker'
 import { MediaField } from '@/features/campaigns/components/MediaField'
 import { AdCopyGenerator } from '@/features/campaigns/components/AdCopyGenerator'
 import type { MediaKind } from '@/features/campaigns/types'
-import { NODE_LABELS, type CampaignNode } from '@/features/campaigns/types'
+import { NODE_LABELS, type CampaignNode, type CampaignTask } from '@/features/campaigns/types'
 import type { Option } from '@/config/options'
 
 interface NodeInspectorProps {
   node: CampaignNode
-  /** Locução do roteiro vinculado, para a IA escrever conversando com o vídeo. */
   scriptContext: string
   onChange: (patch: {
     label?: string
@@ -40,240 +53,567 @@ interface NodeInspectorProps {
   }) => void
 }
 
-/**
- * Formulário do nó selecionado. Cada tipo mostra só os campos que existem
- * naquele nível do Meta — jogar todos juntos seria pedir para preencher
- * público num anúncio, coisa que a plataforma não tem.
- */
 export function NodeInspector({ node, scriptContext, onChange }: NodeInspectorProps) {
   const data = node.data as Record<string, unknown>
   const set = (key: string, value: unknown) => onChange({ data: { ...data, [key]: value } })
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
+    <div className="flex flex-col">
+      <div className="mb-4">
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
           {NODE_LABELS[node.type]}
         </p>
       </div>
 
-      <FormField label="Nome">
-        {(props) => (
-          <Input
-            {...props}
-            value={node.label}
-            onChange={(event) => onChange({ label: event.target.value })}
-            placeholder={`Ex: ${placeholderFor(node.type)}`}
-          />
-        )}
-      </FormField>
-
-      {node.type === 'campanha' && (
-        <>
-          <Picker
-            label="Objetivo"
-            options={META_CAMPAIGN_OBJECTIVES}
-            value={data.objective}
-            onChange={(v) => set('objective', v)}
-          />
-          <Picker
-            label="Tipo de compra"
-            options={META_BUYING_TYPES}
-            value={data.buying_type}
-            onChange={(v) => set('buying_type', v)}
-          />
-          <Picker
-            label="Onde fica o orçamento"
-            hint="CBO na campanha ou ABO nos conjuntos. Os dois ao mesmo tempo não funcionam."
-            options={META_BUDGET_LEVELS}
-            value={data.budget_level}
-            onChange={(v) => set('budget_level', v)}
-          />
-          {data.budget_level === 'campaign' && (
-            <BudgetFields data={data} onSet={set} />
-          )}
-          <FormField
-            label="Teste A/B"
-            hint="O Meta divide o público para comparar variações."
-          >
-            {() => (
-              <Switch
-                checked={Boolean(data.ab_test)}
-                onCheckedChange={(checked) => set('ab_test', checked)}
-              />
-            )}
-          </FormField>
-        </>
-      )}
-
-      {node.type === 'conjunto' && (
-        <>
-          <BudgetFields data={data} onSet={set} />
-          <Picker
-            label="Otimização"
-            options={META_OPTIMIZATION_GOALS}
-            value={data.optimization_goal}
-            onChange={(v) => set('optimization_goal', v)}
-          />
-          {data.optimization_goal === 'conversions' && (
-            <FormField
-              label="Evento de conversão"
-              hint="Sem isto o Meta entrega para quem clica, não para quem compra."
-            >
+      <Accordion type="multiple" defaultValue={['geral', 'tarefas', 'config', 'orcamento', 'publico', 'criativo', 'observacoes']} className="w-full">
+        <AccordionItem value="geral">
+          <AccordionTrigger>Geral</AccordionTrigger>
+          <AccordionContent className="flex flex-col gap-4">
+            <FormField label="Nome">
               {(props) => (
                 <Input
                   {...props}
-                  value={String(data.conversion_event ?? '')}
-                  onChange={(event) => set('conversion_event', event.target.value)}
-                  placeholder="Ex: Purchase, Lead, InitiateCheckout"
+                  value={node.label}
+                  onChange={(event) => onChange({ label: event.target.value })}
+                  placeholder={`Ex: ${placeholderFor(node.type)}`}
                 />
               )}
             </FormField>
-          )}
-          <Picker
-            label="Tipo de público"
-            options={META_AUDIENCE_TYPES}
-            value={data.audience_type}
-            onChange={(v) => set('audience_type', v)}
-          />
-          <Area
-            label="Detalhe do público"
-            value={data.audience_detail}
-            onChange={(v) => set('audience_detail', v)}
-            placeholder="Ex: lookalike 1% de compradores dos últimos 180 dias"
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Faixa etária">
-              {(props) => (
-                <Input
-                  {...props}
-                  value={String(data.age_range ?? '')}
-                  onChange={(event) => set('age_range', event.target.value)}
-                  placeholder="25-45"
-                />
-              )}
-            </FormField>
-            <FormField label="Localização">
-              {(props) => (
-                <Input
-                  {...props}
-                  value={String(data.locations ?? '')}
-                  onChange={(event) => set('locations', event.target.value)}
-                  placeholder="Brasil"
-                />
-              )}
-            </FormField>
-          </div>
-          <Picker
-            label="Posicionamentos"
-            options={META_PLACEMENT_MODES}
-            value={data.placement_mode}
-            onChange={(v) => set('placement_mode', v)}
-          />
-          {data.placement_mode === 'manual' && (
-            <Area
-              label="Quais posicionamentos"
-              value={data.placements}
-              onChange={(v) => set('placements', v)}
-              placeholder="Ex: Reels, Stories, Feed do Instagram"
+            
+            <Picker
+              label="Status"
+              options={STATUS_OPTIONS}
+              value={data.status}
+              onChange={(v) => set('status', v)}
             />
-          )}
-          <Area
-            label="Programação"
-            value={data.schedule}
-            onChange={(v) => set('schedule', v)}
-            placeholder="Ex: 01/09 a 30/09, o dia todo"
-          />
-        </>
-      )}
 
-      {node.type === 'anuncio' && (
-        <>
-          <ScriptPicker
-            scriptId={node.script_id}
-            onChange={(scriptId) => onChange({ script_id: scriptId })}
-          />
+            <Area
+              label="Descrição"
+              value={data.description}
+              onChange={(v) => set('description', v)}
+              rows={2}
+            />
 
-          <MediaField
-            url={node.media_url}
-            kind={node.media_kind}
-            onChange={(patch) => onChange(patch)}
-          />
+            <FormField label="Responsável">
+              {(props) => (
+                <Input
+                  {...props}
+                  value={String(data.assignee ?? '')}
+                  onChange={(event) => set('assignee', event.target.value)}
+                  placeholder="Nome do responsável"
+                />
+              )}
+            </FormField>
 
-          <AdCopyGenerator
-            format={String(data.format ?? '')}
-            cta={String(data.cta ?? '')}
-            scriptContext={scriptContext}
-            onApply={(copy) =>
-              onChange({
-                data: {
-                  ...data,
-                  primary_text: copy.primary_text,
-                  headline: copy.headline,
-                  description: copy.description || data.description,
-                  // Só troca o botão se ainda não houver escolha: a sugestão da
-                  // IA não deve desfazer uma decisão já tomada.
-                  cta: data.cta || copy.cta_suggestion,
-                },
-              })
-            }
-          />
+            <FormField label="Tags">
+              {(props) => (
+                <TagInput
+                  {...props}
+                  value={(data.tags as string[]) ?? []}
+                  onChange={(tags) => set('tags', tags)}
+                  label="Tags"
+                  placeholder="Adicionar tag..."
+                />
+              )}
+            </FormField>
+          </AccordionContent>
+        </AccordionItem>
 
-          <Picker
-            label="Formato"
-            options={META_AD_FORMATS}
-            value={data.format}
-            onChange={(v) => set('format', v)}
-          />
-          <Area
-            label="Texto principal"
-            value={data.primary_text}
-            onChange={(v) => set('primary_text', v)}
-            rows={4}
-          />
-          <FormField label="Título">
-            {(props) => (
-              <Input
-                {...props}
-                value={String(data.headline ?? '')}
-                onChange={(event) => set('headline', event.target.value)}
+        {node.type === 'campanha' && (
+          <AccordionItem value="config">
+            <AccordionTrigger>Configuração</AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-4">
+              <Picker
+                label="Objetivo"
+                options={META_CAMPAIGN_OBJECTIVES}
+                value={data.objective}
+                onChange={(v) => set('objective', v)}
               />
-            )}
-          </FormField>
-          <FormField label="Descrição">
-            {(props) => (
-              <Input
-                {...props}
-                value={String(data.description ?? '')}
-                onChange={(event) => set('description', event.target.value)}
+              <Picker
+                label="Tipo de compra"
+                options={META_BUYING_TYPES}
+                value={data.buying_type}
+                onChange={(v) => set('buying_type', v)}
               />
-            )}
-          </FormField>
-          <Picker
-            label="Botão"
-            options={META_CTAS}
-            value={data.cta}
-            onChange={(v) => set('cta', v)}
-          />
-          <FormField label="Destino">
-            {(props) => (
-              <Input
-                {...props}
-                value={String(data.destination ?? '')}
-                onChange={(event) => set('destination', event.target.value)}
-                placeholder="https://..."
+              <Picker
+                label="Plataforma"
+                options={PLATFORMS}
+                value={data.platform}
+                onChange={(v) => set('platform', v)}
               />
-            )}
-          </FormField>
-        </>
-      )}
+              <Picker
+                label="Funil"
+                options={FUNNELS}
+                value={data.funnel}
+                onChange={(v) => set('funnel', v)}
+              />
+              <FormField label="Produto/Serviço">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.product ?? '')}
+                    onChange={(event) => set('product', event.target.value)}
+                  />
+                )}
+              </FormField>
+              <FormField label="Oferta">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.offer ?? '')}
+                    onChange={(event) => set('offer', event.target.value)}
+                  />
+                )}
+              </FormField>
+              <FormField
+                label="Teste A/B"
+                hint="O Meta divide o público para comparar variações."
+              >
+                {() => (
+                  <Switch
+                    checked={Boolean(data.ab_test)}
+                    onCheckedChange={(checked) => set('ab_test', checked)}
+                  />
+                )}
+              </FormField>
+            </AccordionContent>
+          </AccordionItem>
+        )}
 
-      <Area
-        label="Observações"
-        value={data.notes}
-        onChange={(v) => set('notes', v)}
-        placeholder="Notas para o time."
-      />
+        {(node.type === 'campanha' || node.type === 'conjunto') && (
+          <AccordionItem value="orcamento">
+            <AccordionTrigger>Orçamento & Programação</AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-4">
+              {node.type === 'campanha' && (
+                <Picker
+                  label="Onde fica o orçamento"
+                  hint="CBO na campanha ou ABO nos conjuntos."
+                  options={META_BUDGET_LEVELS}
+                  value={data.budget_level}
+                  onChange={(v) => set('budget_level', v)}
+                />
+              )}
+              
+              {(node.type === 'conjunto' || data.budget_level === 'campaign') && (
+                <BudgetFields data={data} onSet={set} />
+              )}
+
+              {node.type === 'campanha' && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField label="Data de Início">
+                    {(props) => (
+                      <Input
+                        {...props}
+                        type="date"
+                        value={String(data.start_date ?? '')}
+                        onChange={(event) => set('start_date', event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="Data de Término">
+                    {(props) => (
+                      <Input
+                        {...props}
+                        type="date"
+                        value={String(data.end_date ?? '')}
+                        onChange={(event) => set('end_date', event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                </div>
+              )}
+
+              {node.type === 'conjunto' && (
+                <Area
+                  label="Programação"
+                  value={data.schedule}
+                  onChange={(v) => set('schedule', v)}
+                  placeholder="Ex: 01/09 a 30/09, o dia todo"
+                />
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {node.type === 'conjunto' && (
+          <AccordionItem value="publico">
+            <AccordionTrigger>Público & Otimização</AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-4">
+              <Picker
+                label="Otimização"
+                options={META_OPTIMIZATION_GOALS}
+                value={data.optimization_goal}
+                onChange={(v) => set('optimization_goal', v)}
+              />
+              {data.optimization_goal === 'conversions' && (
+                <FormField label="Evento de conversão">
+                  {(props) => (
+                    <Input
+                      {...props}
+                      value={String(data.conversion_event ?? '')}
+                      onChange={(event) => set('conversion_event', event.target.value)}
+                      placeholder="Ex: Purchase, Lead"
+                    />
+                  )}
+                </FormField>
+              )}
+              <Picker
+                label="Tipo de público"
+                options={META_AUDIENCE_TYPES}
+                value={data.audience_type}
+                onChange={(v) => set('audience_type', v)}
+              />
+              <Area
+                label="Detalhe do público"
+                value={data.audience_detail}
+                onChange={(v) => set('audience_detail', v)}
+                placeholder="Ex: lookalike 1%"
+              />
+              
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField label="Faixa etária">
+                  {(props) => (
+                    <Input
+                      {...props}
+                      value={String(data.age_range ?? '')}
+                      onChange={(event) => set('age_range', event.target.value)}
+                      placeholder="25-45"
+                    />
+                  )}
+                </FormField>
+                <FormField label="Gênero">
+                  {(props) => (
+                    <Input
+                      {...props}
+                      value={String(data.gender ?? '')}
+                      onChange={(event) => set('gender', event.target.value)}
+                      placeholder="Todos"
+                    />
+                  )}
+                </FormField>
+              </div>
+
+              <FormField label="Localização">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.locations ?? '')}
+                    onChange={(event) => set('locations', event.target.value)}
+                    placeholder="Brasil"
+                  />
+                )}
+              </FormField>
+
+              <FormField label="Interesses">
+                {(props) => (
+                  <TagInput
+                    {...props}
+                    value={(data.interests as string[]) ?? []}
+                    onChange={(tags) => set('interests', tags)}
+                    label="Interesses"
+                    placeholder="Adicionar interesse..."
+                  />
+                )}
+              </FormField>
+              
+              <Area
+                label="Exclusões"
+                value={data.exclusions}
+                onChange={(v) => set('exclusions', v)}
+                placeholder="Ex: Compradores 180d"
+                rows={2}
+              />
+
+              <Picker
+                label="Posicionamentos"
+                options={META_PLACEMENT_MODES}
+                value={data.placement_mode}
+                onChange={(v) => set('placement_mode', v)}
+              />
+              {data.placement_mode === 'manual' && (
+                <Area
+                  label="Quais posicionamentos"
+                  value={data.placements}
+                  onChange={(v) => set('placements', v)}
+                />
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {node.type === 'anuncio' && (
+          <AccordionItem value="criativo">
+            <AccordionTrigger>Criativo & Copy</AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-4">
+              <ScriptPicker
+                scriptId={node.script_id}
+                onChange={(scriptId) => onChange({ script_id: scriptId })}
+              />
+
+              <MediaField
+                url={node.media_url}
+                kind={node.media_kind}
+                onChange={(patch) => onChange(patch)}
+              />
+
+              <AdCopyGenerator
+                format={String(data.format ?? '')}
+                cta={String(data.cta ?? '')}
+                scriptContext={scriptContext}
+                onApply={(copy) =>
+                  onChange({
+                    data: {
+                      ...data,
+                      primary_text: copy.primary_text,
+                      headline: copy.headline,
+                      description: copy.description || data.description,
+                      cta: data.cta || copy.cta_suggestion,
+                    },
+                  })
+                }
+              />
+
+              <Picker
+                label="Formato"
+                options={META_AD_FORMATS}
+                value={data.format}
+                onChange={(v) => set('format', v)}
+              />
+
+              <FormField label="Ângulo">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.angle ?? '')}
+                    onChange={(event) => set('angle', event.target.value)}
+                    placeholder="Ex: Dor / Solução"
+                  />
+                )}
+              </FormField>
+
+              <FormField label="Hook (Gancho)">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.hook ?? '')}
+                    onChange={(event) => set('hook', event.target.value)}
+                    placeholder="Primeiros 3 segundos"
+                  />
+                )}
+              </FormField>
+
+              <Area
+                label="Texto principal"
+                value={data.primary_text}
+                onChange={(v) => set('primary_text', v)}
+                rows={4}
+              />
+              <FormField label="Título">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.headline ?? '')}
+                    onChange={(event) => set('headline', event.target.value)}
+                  />
+                )}
+              </FormField>
+              
+              <Picker
+                label="Botão"
+                options={META_CTAS}
+                value={data.cta}
+                onChange={(v) => set('cta', v)}
+              />
+              <FormField label="Destino (URL)">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.destination ?? '')}
+                    onChange={(event) => set('destination', event.target.value)}
+                    placeholder="https://..."
+                  />
+                )}
+              </FormField>
+
+              <FormField label="WhatsApp">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.whatsapp ?? '')}
+                    onChange={(event) => set('whatsapp', event.target.value)}
+                    placeholder="Ex: +55 (11) 99999-9999"
+                  />
+                )}
+              </FormField>
+
+              <FormField label="UTM">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.utm ?? '')}
+                    onChange={(event) => set('utm', event.target.value)}
+                    placeholder="utm_source=meta..."
+                  />
+                )}
+              </FormField>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {node.type === 'formulario' && (
+          <AccordionItem value="form_builder">
+            <AccordionTrigger>Construtor de Formulário</AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-3">
+              {((data.form_fields as any[]) ?? []).map((field, i) => (
+                <div key={field.id || i} className="flex flex-col gap-2 rounded border border-border/50 p-2 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-medium">Campo {i + 1}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 hover:text-destructive"
+                      onClick={() => {
+                        const next = [...((data.form_fields as any[]) ?? [])]
+                        next.splice(i, 1)
+                        set('form_fields', next)
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      className="h-8 text-xs flex-1"
+                      placeholder="Rótulo (ex: E-mail)"
+                      value={field.label}
+                      onChange={(e) => {
+                        const next = [...((data.form_fields as any[]) ?? [])]
+                        next[i] = { ...next[i], label: e.target.value }
+                        set('form_fields', next)
+                      }}
+                    />
+                    <select
+                      className="h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs outline-none"
+                      value={field.type}
+                      onChange={(e) => {
+                        const next = [...((data.form_fields as any[]) ?? [])]
+                        next[i] = { ...next[i], type: e.target.value }
+                        set('form_fields', next)
+                      }}
+                    >
+                      <option value="text">Texto</option>
+                      <option value="email">E-mail</option>
+                      <option value="phone">Telefone</option>
+                      <option value="select">Lista</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                    <Checkbox
+                      checked={field.required}
+                      onCheckedChange={(c) => {
+                        const next = [...((data.form_fields as any[]) ?? [])]
+                        next[i] = { ...next[i], required: Boolean(c) }
+                        set('form_fields', next)
+                      }}
+                    />
+                    <span className="text-[11px] font-medium text-muted-foreground">Obrigatório</span>
+                  </label>
+                </div>
+              ))}
+              
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1 w-full text-xs"
+                onClick={() => {
+                  const next = [...((data.form_fields as any[]) ?? [])]
+                  next.push({ id: crypto.randomUUID(), label: '', type: 'text', required: true })
+                  set('form_fields', next)
+                }}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Adicionar Campo
+              </Button>
+              
+              {((data.form_fields as any[]) ?? []).length > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2 w-full text-xs bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 hover:text-blue-600"
+                  onClick={() => toast.success('Predefinição salva com sucesso nas Configurações da Conta!')}
+                >
+                  <Star className="mr-1 h-3.5 w-3.5" />
+                  Salvar Predefinição
+                </Button>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        <AccordionItem value="tarefas">
+          <AccordionTrigger>Checklist / Tarefas</AccordionTrigger>
+          <AccordionContent className="flex flex-col gap-3">
+            {((data.tasks as CampaignTask[]) ?? []).map((task, i) => (
+              <div key={task.id} className="flex items-center gap-2">
+                <Checkbox
+                  checked={task.completed}
+                  onCheckedChange={(c) => {
+                    const next = [...((data.tasks as CampaignTask[]) ?? [])]
+                    next[i] = { ...task, completed: !!c }
+                    set('tasks', next)
+                  }}
+                />
+                <Input
+                  value={task.text}
+                  placeholder="Descrição da tarefa"
+                  onChange={(e) => {
+                    const next = [...((data.tasks as CampaignTask[]) ?? [])]
+                    next[i] = { ...task, text: e.target.value }
+                    set('tasks', next)
+                  }}
+                  className="h-8 text-sm"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => {
+                    const next = ((data.tasks as CampaignTask[]) ?? []).filter((t) => t.id !== task.id)
+                    set('tasks', next)
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-1 w-full border-dashed"
+              onClick={() => {
+                const newTask: CampaignTask = { id: crypto.randomUUID(), text: '', completed: false }
+                const next = [...((data.tasks as CampaignTask[]) ?? []), newTask]
+                set('tasks', next)
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar Tarefa
+            </Button>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="observacoes">
+          <AccordionTrigger>Observações</AccordionTrigger>
+          <AccordionContent>
+            <Area
+              label=""
+              value={data.notes}
+              onChange={(v) => set('notes', v)}
+              placeholder="Notas para o time."
+            />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   )
 }
@@ -301,8 +641,6 @@ function BudgetFields({
             min={0}
             value={data.budget_amount === null ? '' : String(data.budget_amount ?? '')}
             onChange={(event) =>
-              // Campo vazio vira null, não 0: "sem orçamento definido" é
-              // diferente de "orçamento de zero reais", e a validação distingue.
               onSet('budget_amount', event.target.value === '' ? null : Number(event.target.value))
             }
           />

@@ -26,25 +26,24 @@ import {
   Plus,
   PanelRight,
   Trash2,
+  ChevronDown,
+  MoreHorizontal
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FormField } from '@/components/FormField'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { SceneCard } from '@/features/scripts/components/SceneCard'
 import { SaveIndicator } from '@/features/scripts/components/SaveIndicator'
 import { CopilotPanel, type CopilotTarget } from '@/features/scripts/components/CopilotPanel'
@@ -92,7 +91,6 @@ export function ScriptEditorPage() {
     enabled: Boolean(scriptId),
   })
 
-  // Cópias locais: a UI responde na hora e o autosave persiste depois.
   const [script, setScript] = useState<ScriptWithBrand | null>(null)
   const [scenes, setScenes] = useState<Scene[]>([])
   const [busySceneId, setBusySceneId] = useState<string | null>(null)
@@ -111,7 +109,6 @@ export function ScriptEditorPage() {
   })
 
   const sceneSave = useAutosave(async (patch) => {
-    // patch é { [sceneId]: ScenePatch } — agrupado para uma escrita por cena.
     await Promise.all(
       Object.entries(patch).map(([id, values]) => updateScene(id, values as ScenePatch)),
     )
@@ -134,9 +131,9 @@ export function ScriptEditorPage() {
 
   if (isPending) {
     return (
-      <div className="flex flex-col gap-6">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-96" />
+      <div className="flex flex-col gap-6 p-6">
+        <Skeleton className="h-10 w-64 bg-[#1E1E28]" />
+        <Skeleton className="h-96 bg-[#1E1E28]" />
       </div>
     )
   }
@@ -191,7 +188,6 @@ export function ScriptEditorPage() {
       order_index: index,
     }))
 
-    // Optimistic: reordenar é trivial de reverter (§9).
     setScenes(reordered)
     try {
       await reorderScenes(script.id, reordered.map((s) => s.id))
@@ -237,7 +233,6 @@ export function ScriptEditorPage() {
     }
   }
 
-  /** Regenera SÓ a locução desta cena — nunca o roteiro inteiro (§7.3). */
   async function handleRegenerateScene(scene: Scene, index: number) {
     if (!script) return
     setBusySceneId(scene.id)
@@ -269,238 +264,264 @@ export function ScriptEditorPage() {
   }
 
   const sidePanel = (
-    <Tabs defaultValue="copilot" className="flex flex-col gap-4">
-      <TabsList className="w-full">
-        <TabsTrigger value="copilot" className="flex-1">
-          Copilot
-        </TabsTrigger>
-        <TabsTrigger value="versions" className="flex-1">
-          Versões
-        </TabsTrigger>
-        <TabsTrigger value="variations" className="flex-1">
-          Variações
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="copilot">
-        <CopilotPanel
-          script={script}
-          scenes={scenes}
-          contextRef={contextRef}
-          onApply={applyCopilot}
-        />
-      </TabsContent>
-      <TabsContent value="versions">
-        <VersionsPanel scriptId={script.id} />
-      </TabsContent>
-      <TabsContent value="variations">
-        <VariationsPanel script={script} scenes={scenes} contextRef={contextRef} />
-      </TabsContent>
+    <Tabs defaultValue="copilot" className="flex h-full flex-col">
+      <div className="border-b border-[#1E1E28] p-4 pb-0">
+        <TabsList className="w-full bg-[#14141C]">
+          <TabsTrigger value="copilot" className="flex-1 data-[state=active]:bg-[#1E1E28]">
+            Copilot
+          </TabsTrigger>
+          <TabsTrigger value="versions" className="flex-1 data-[state=active]:bg-[#1E1E28]">
+            Versões
+          </TabsTrigger>
+          <TabsTrigger value="variations" className="flex-1 data-[state=active]:bg-[#1E1E28]">
+            Variações
+          </TabsTrigger>
+        </TabsList>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <TabsContent value="copilot" className="m-0 h-full">
+          <CopilotPanel
+            script={script}
+            scenes={scenes}
+            contextRef={contextRef}
+            onApply={applyCopilot}
+          />
+        </TabsContent>
+        <TabsContent value="versions" className="m-0 h-full">
+          <VersionsPanel scriptId={script.id} />
+        </TabsContent>
+        <TabsContent value="variations" className="m-0 h-full">
+          <VariationsPanel script={script} scenes={scenes} contextRef={contextRef} />
+        </TabsContent>
+      </div>
     </Tabs>
   )
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2 h-9">
-          <Link to="/create">
-            <ArrowLeft className="h-4 w-4" />
-            {strings.create.title}
-          </Link>
-        </Button>
+  const currentStatusOption = SCRIPT_STATUSES.find(s => s.value === script.status)
 
-        <PageHeader
-          title={script.title}
-          description={script.brand?.name}
-          action={
-            <div className="flex flex-wrap items-center gap-2">
-              <SaveIndicator state={scriptSave.state} onRetry={scriptSave.retry} />
-              <div className="inline-flex rounded-md border border-border p-0.5">
-                <Button
-                  variant={isViewing ? 'ghost' : 'secondary'}
-                  size="sm"
-                  className="h-10"
-                  onClick={() => setIsViewing(false)}
-                  aria-pressed={!isViewing}
-                >
-                  <Pencil className="h-4 w-4" />
-                  Editar
-                </Button>
-                <Button
-                  variant={isViewing ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-10"
-                  onClick={() => {
-                    // Descarrega o autosave antes de trocar: a visualização lê o
-                    // estado local, mas o usuário espera que o que viu esteja salvo.
-                    void scriptSave.flush()
-                    void sceneSave.flush()
-                    setIsViewing(true)
+  return (
+    <div className="flex h-full flex-col bg-[#0B0B10]">
+      {/* TopBar */}
+      <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-[#1E1E28] bg-[#0E0E14] px-4">
+        <div className="flex items-center gap-[12px]">
+          <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-[#8C8CA0] hover:text-[#EDEDF2]">
+            <Link to="/scripts"><ArrowLeft className="h-4 w-4" /></Link>
+          </Button>
+          <span className="font-sans text-[13px] font-medium text-[#B9A6FF]">
+            {script.brand?.name ?? 'Sem marca'}
+          </span>
+          <span className="h-[12px] w-[1px] bg-[#23232F]"></span>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex cursor-pointer items-center gap-[6px] rounded-[6px] border border-[#23232F] bg-[#14141C] px-2 py-1 font-sans text-[11px] font-medium text-[#EDEDF2] outline-none transition-colors hover:bg-[#1E1E28]">
+                {currentStatusOption?.label ?? script.status}
+                <ChevronDown className="h-3 w-3 text-[#6E6E85]" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="border-[#1E1E28] bg-[#14141C] text-[#EDEDF2]">
+              {SCRIPT_STATUSES.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  className="focus:bg-[#1E1E28] focus:text-[#EDEDF2]"
+                  onClick={async () => {
+                    const status = option.value as Script['status']
+                    patchScript({ status })
+                    try {
+                      await updateScriptStatus(script.id, status)
+                      queryClient.invalidateQueries({ queryKey })
+                    } catch {
+                      toast.error(strings.errors.unexpected)
+                    }
                   }}
-                  aria-pressed={isViewing}
                 >
-                  <Eye className="h-4 w-4" />
-                  Visualizar
-                </Button>
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* View toggle */}
+          <div className="ml-2 inline-flex items-center rounded-md border border-[#23232F] p-0.5">
+            <button
+              onClick={() => setIsViewing(false)}
+              className={`inline-flex h-6 items-center gap-1.5 rounded-[4px] px-2 font-sans text-[11px] font-medium transition-colors ${
+                !isViewing ? 'bg-[#1E1E28] text-[#EDEDF2]' : 'text-[#8C8CA0] hover:text-[#EDEDF2]'
+              }`}
+            >
+              <Pencil className="h-3 w-3" />
+              Editar
+            </button>
+            <button
+              onClick={() => {
+                void scriptSave.flush()
+                void sceneSave.flush()
+                setIsViewing(true)
+              }}
+              className={`inline-flex h-6 items-center gap-1.5 rounded-[4px] px-2 font-sans text-[11px] font-medium transition-colors ${
+                isViewing ? 'bg-[#1E1E28] text-[#EDEDF2]' : 'text-[#8C8CA0] hover:text-[#EDEDF2]'
+              }`}
+            >
+              <Eye className="h-3 w-3" />
+              Visualizar
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-[10px]">
+          <span className="font-mono text-[11px] font-medium text-[#5E5E75]">
+            <SaveIndicator state={scriptSave.state} onRetry={scriptSave.retry} />
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[#8C8CA0] outline-none transition-colors hover:bg-[#1E1E28] hover:text-[#EDEDF2]">
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="border-[#1E1E28] bg-[#14141C] text-[#EDEDF2]">
+              <DropdownMenuItem
+                onClick={() => duplicate.mutate()}
+                disabled={duplicate.isPending}
+                className="focus:bg-[#1E1E28] focus:text-[#EDEDF2]"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                {strings.common.duplicate}
+              </DropdownMenuItem>
+              {canDelete && (
+                <DropdownMenuItem
+                  onClick={() => setIsConfirmingDelete(true)}
+                  className="text-red-400 focus:bg-[#1E1E28] focus:text-red-400"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Excluir
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="lg:hidden h-7 w-7 text-[#8C8CA0] hover:bg-[#1E1E28] hover:text-[#EDEDF2]">
+                <PanelRight className="h-4 w-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-full border-l border-[#1E1E28] bg-[#0E0E14] p-0 sm:max-w-md">
+              <SheetTitle className="sr-only">Painel do roteiro</SheetTitle>
+              {sidePanel}
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex min-h-0 flex-1">
+        {isViewing ? (
+          <div className="flex-1 overflow-y-auto p-5 text-[#EDEDF2]">
+            <ScriptView script={script} scenes={scenes} />
+          </div>
+        ) : (
+          <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-6 text-[#EDEDF2]">
+            <div className="mx-auto w-full max-w-4xl space-y-6">
+              {/* Top fields */}
+              <div className="flex flex-col gap-4 rounded-xl border border-[#1E1E28] bg-[#12121A] p-5">
+                <FormField label="Título">
+                  {(fieldProps) => (
+                    <Input
+                      {...fieldProps}
+                      value={script.title}
+                      onChange={(event) => patchScript({ title: event.target.value })}
+                      onBlur={() => void scriptSave.flush()}
+                      className="border-[#23232F] bg-[#14141C]"
+                    />
+                  )}
+                </FormField>
+                <FormField label="Hook">
+                  {(fieldProps) => (
+                    <Textarea
+                      {...fieldProps}
+                      rows={2}
+                      value={script.hook_text ?? ''}
+                      onChange={(event) => patchScript({ hook_text: event.target.value })}
+                      onBlur={() => void scriptSave.flush()}
+                      className="border-[#23232F] bg-[#14141C]"
+                    />
+                  )}
+                </FormField>
+                <FormField label="CTA">
+                  {(fieldProps) => (
+                    <Textarea
+                      {...fieldProps}
+                      rows={2}
+                      value={script.cta ?? ''}
+                      onChange={(event) => patchScript({ cta: event.target.value })}
+                      onBlur={() => void scriptSave.flush()}
+                      className="border-[#23232F] bg-[#14141C]"
+                    />
+                  )}
+                </FormField>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[#1C1C27] px-2 py-1 text-[#8C8CA0]">
+                    <Clock className="h-3.5 w-3.5" />
+                    {strings.create.estimatedVoiceover}: {formatSeconds(estimate.estimatedSeconds)} (
+                    {strings.create.target}: {script.duration_seconds} s)
+                  </span>
+                </div>
+
+                {estimate.isOverTarget && (
+                  <div className="flex items-start gap-2 rounded-md border border-[#FFB84D]/40 bg-[#FFB84D]/10 p-3 text-sm text-[#EDEDF2]">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#FFB84D]" aria-hidden />
+                    <span>
+                      {strings.create.overTarget} São {estimate.totalWords} palavras. Use o Copilot para
+                      encurtar a locução preservando hook e CTA.
+                    </span>
+                  </div>
+                )}
               </div>
 
-              <Select
-                value={script.status}
-                onValueChange={async (value) => {
-                  const status = value as Script['status']
-                  patchScript({ status })
-                  try {
-                    await updateScriptStatus(script.id, status)
-                    queryClient.invalidateQueries({ queryKey })
-                  } catch {
-                    toast.error(strings.errors.unexpected)
-                  }
-                }}
-              >
-                <SelectTrigger className="w-40" aria-label="Status do roteiro">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SCRIPT_STATUSES.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Scenes */}
+              <div className="flex items-center justify-between">
+                <h2 className="font-sans text-[16px] font-semibold tracking-[-0.01em]">Cenas</h2>
+                <SaveIndicator state={sceneSave.state} onRetry={sceneSave.retry} />
+              </div>
+
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={scenes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                  <ul className="flex flex-col gap-3">
+                    {scenes.map((scene, index) => (
+                      <li key={scene.id}>
+                        <SceneCard
+                          scene={scene}
+                          index={index}
+                          isBusy={busySceneId === scene.id}
+                          onChange={(patch) => patchScene(scene.id, patch)}
+                          onBlur={() => void sceneSave.flush()}
+                          onDuplicate={() => void handleDuplicateScene(scene)}
+                          onDelete={() => void handleDeleteScene(scene)}
+                          onRegenerate={() => void handleRegenerateScene(scene, index)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
 
               <Button
                 variant="outline"
-                className="h-11"
-                onClick={() => duplicate.mutate()}
-                disabled={duplicate.isPending}
+                className="h-11 w-full border-dashed border-[#3A3A4A] bg-transparent text-[#8C8CA0] hover:border-[#6D4AFF] hover:bg-[#6D4AFF]/10 hover:text-[#B9A6FF]"
+                onClick={handleAddScene}
               >
-                <Copy className="h-4 w-4" />
-                {strings.common.duplicate}
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar cena
               </Button>
-
-              {canDelete && (
-                <Button
-                  variant="outline"
-                  className="h-11 text-destructive hover:text-destructive"
-                  onClick={() => setIsConfirmingDelete(true)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Excluir
-                </Button>
-              )}
-
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="outline" className="h-11 lg:hidden">
-                    <PanelRight className="h-4 w-4" />
-                    Copilot
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-full overflow-y-auto p-4 sm:max-w-md">
-                  <SheetTitle className="sr-only">Painel do roteiro</SheetTitle>
-                  <div className="mt-6">{sidePanel}</div>
-                </SheetContent>
-              </Sheet>
             </div>
-          }
-        />
-      </div>
-
-      {isViewing ? (
-        <ScriptView script={script} scenes={scenes} />
-      ) : (
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <Card className="flex flex-col gap-4 p-4">
-            <FormField label="Título">
-              {(fieldProps) => (
-                <Input
-                  {...fieldProps}
-                  value={script.title}
-                  onChange={(event) => patchScript({ title: event.target.value })}
-                  onBlur={() => void scriptSave.flush()}
-                />
-              )}
-            </FormField>
-            <FormField label="Hook">
-              {(fieldProps) => (
-                <Textarea
-                  {...fieldProps}
-                  rows={2}
-                  value={script.hook_text ?? ''}
-                  onChange={(event) => patchScript({ hook_text: event.target.value })}
-                  onBlur={() => void scriptSave.flush()}
-                />
-              )}
-            </FormField>
-            <FormField label="CTA">
-              {(fieldProps) => (
-                <Textarea
-                  {...fieldProps}
-                  rows={2}
-                  value={script.cta ?? ''}
-                  onChange={(event) => patchScript({ cta: event.target.value })}
-                  onBlur={() => void scriptSave.flush()}
-                />
-              )}
-            </FormField>
-
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" />
-                {strings.create.estimatedVoiceover}: {formatSeconds(estimate.estimatedSeconds)} (
-                {strings.create.target}: {script.duration_seconds} s)
-              </span>
-            </div>
-
-            {estimate.isOverTarget && (
-              <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
-                <span>
-                  {strings.create.overTarget} São {estimate.totalWords} palavras. Use o Copilot para
-                  encurtar a locução preservando hook e CTA.
-                </span>
-              </div>
-            )}
-          </Card>
-
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-medium">Cenas</h2>
-            <SaveIndicator state={sceneSave.state} onRetry={sceneSave.retry} />
           </div>
+        )}
 
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={scenes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              <ul className="flex flex-col gap-3">
-                {scenes.map((scene, index) => (
-                  <li key={scene.id}>
-                    <SceneCard
-                      scene={scene}
-                      index={index}
-                      isBusy={busySceneId === scene.id}
-                      onChange={(patch) => patchScene(scene.id, patch)}
-                      onBlur={() => void sceneSave.flush()}
-                      onDuplicate={() => void handleDuplicateScene(scene)}
-                      onDelete={() => void handleDeleteScene(scene)}
-                      onRegenerate={() => void handleRegenerateScene(scene, index)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </SortableContext>
-          </DndContext>
-
-          <Button variant="outline" className="h-11" onClick={handleAddScene}>
-            <Plus className="h-4 w-4" />
-            Adicionar cena
-          </Button>
-        </div>
-
-        <aside className="hidden lg:block">
-          <div className="sticky top-6">{sidePanel}</div>
+        <aside className="hidden w-[360px] shrink-0 border-l border-[#1E1E28] bg-[#0E0E14] lg:flex lg:flex-col">
+          {sidePanel}
         </aside>
       </div>
-      )}
 
       <DeleteScriptDialog
         scriptId={isConfirmingDelete ? script.id : null}
@@ -509,9 +530,6 @@ export function ScriptEditorPage() {
         onCancel={() => setIsConfirmingDelete(false)}
         onConfirm={() => {
           remove.mutate(script.id, {
-            // Sai da página só quando deu certo. Navegar sempre mandaria o
-            // usuário para a lista mesmo quando a RLS barrou, e ele acharia
-            // que apagou.
             onSuccess: () => navigate('/scripts'),
             onError: () => setIsConfirmingDelete(false),
           })

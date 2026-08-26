@@ -138,15 +138,23 @@ export function useNodeMutations(planId: string) {
   })
 
   const reparent = useMutation({
-    mutationFn: ({ childId, parentId }: { childId: string; parentId: string }) =>
+    mutationFn: ({ childId, parentId }: { childId: string; parentId: string | null }) =>
       reparentNode(childId, parentId),
     onSuccess: invalidate,
     onError: reportCampaignError,
   })
 
   const link = useMutation({
-    mutationFn: (input: { workspaceId: string; sourceId: string; targetId: string }) =>
-      createLink({ ...input, planId }),
+    mutationFn: (input: {
+      workspaceId: string
+      sourceId: string
+      targetId: string
+      sourceHandle?: string
+      targetHandle?: string
+      type?: string
+      label?: string
+      style?: any
+    }) => createLink({ ...input, planId }),
     onSuccess: invalidate,
     onError: (error) => {
       // 23505 é a unique (source, target): a ligação já existe, e avisar disso

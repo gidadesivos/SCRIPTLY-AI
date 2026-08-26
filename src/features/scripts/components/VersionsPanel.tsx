@@ -100,7 +100,7 @@ export function VersionsPanel({ scriptId }: { scriptId: string }) {
                   {version.change_description ? ` · ${version.change_description}` : ''}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {version.snapshot.scenes.length} cenas
+                  {((version.snapshot as any)?.scenes?.length || 0)} cenas
                 </p>
               </div>
               <Button

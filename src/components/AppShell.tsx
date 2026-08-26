@@ -2,6 +2,7 @@ import { Suspense, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Menu, Loader2 } from 'lucide-react'
 import { AppSidebar } from '@/components/AppSidebar'
+import { AppRail } from '@/components/AppRail'
 import { ModelSelector } from '@/components/ModelSelector'
 import { RouteFallback } from '@/components/RouteFallback'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
@@ -29,38 +30,30 @@ function AppShellInner() {
   }
 
   return (
-    <div className="flex min-h-svh">
-      <aside className="hidden w-64 shrink-0 border-r border-border md:block">
-        <AppSidebar />
+    <div className="flex min-h-svh bg-[#0B0B10]">
+      <aside className="hidden shrink-0 md:block">
+        <AppRail />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile header */}
-        <header className="flex h-14 items-center gap-3 border-b border-border px-4 md:hidden">
+        <header className="flex h-14 items-center gap-3 border-b border-[#1E1E28] bg-[#0E0E14] px-4 md:hidden">
           <Button
             variant="ghost"
             size="icon"
-            className="h-11 w-11"
+            className="h-11 w-11 text-[#8C8CA0]"
             onClick={() => setIsDrawerOpen(true)}
             aria-label="Abrir menu"
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <span className="text-sm font-semibold">{APP_NAME}</span>
+          <span className="text-sm font-semibold text-[#EDEDF2]">{APP_NAME}</span>
           <div className="ml-auto">
             <ModelSelector />
           </div>
         </header>
 
-        {/* Desktop top bar */}
-        <header className="hidden h-12 items-center justify-end border-b border-border px-4 md:flex">
-          <ModelSelector />
-        </header>
-
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {/* As páginas são carregadas sob demanda (routes.tsx); sem este
-              Suspense elas lançariam ao montar. O boundary fica aqui, e não
-              acima, para a barra lateral não sumir a cada navegação. */}
+        <main className="flex flex-1 flex-col overflow-y-auto bg-[#0B0B10]">
           <Suspense fallback={<RouteFallback />}>
             <Outlet />
           </Suspense>
