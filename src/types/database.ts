@@ -1063,6 +1063,7 @@ export type Database = {
         | "frame"
         | "texto"
         | "forma"
+        | "formulario"
       funnel_stage: "topo" | "meio" | "fundo" | "remarketing"
       member_role: "owner" | "admin" | "editor" | "viewer"
       platform:

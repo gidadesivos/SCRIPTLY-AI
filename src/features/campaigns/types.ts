@@ -128,7 +128,7 @@ export type CampanhaData = z.infer<typeof campanhaDataSchema>
 export type ConjuntoData = z.infer<typeof conjuntoDataSchema>
 export type AnuncioData = z.infer<typeof anuncioDataSchema>
 export type FormularioData = z.infer<typeof formularioDataSchema>
-export type CampaignNodeData = CampanhaData | ConjuntoData | AnuncioData | FormularioData | Record<string, unknown>
+export type CampaignNodeData = CampanhaData | ConjuntoData | AnuncioData | FormularioData | Record<string, any>
 
 export function parseNodeData(type: CampaignNodeType, raw: unknown): CampaignNodeData {
   const input = raw && typeof raw === 'object' ? raw : {}
@@ -136,7 +136,7 @@ export function parseNodeData(type: CampaignNodeType, raw: unknown): CampaignNod
   if (type === 'conjunto') return conjuntoDataSchema.parse(input)
   if (type === 'anuncio') return anuncioDataSchema.parse(input)
   if (type === 'formulario') return formularioDataSchema.parse(input)
-  return input as Record<string, unknown>
+  return input as Record<string, any>
 }
 
 export function emptyNodeData(type: CampaignNodeType): CampaignNodeData {

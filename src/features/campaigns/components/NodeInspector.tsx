@@ -19,7 +19,7 @@ import { TagInput } from '@/components/TagInput'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Plus, Trash2, X, AlertTriangle, Link2, Star } from 'lucide-react'
+import { Plus, Trash2, Star } from 'lucide-react'
 import {
   META_AD_FORMATS,
   META_AUDIENCE_TYPES,

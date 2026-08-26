@@ -289,7 +289,7 @@ export function PlanBoardPage() {
               hasClipboard={!!clipboardNodeId}
               layoutMode={layoutMode}
               activeTool={activeTool}
-              setActiveTool={setActiveTool}
+              setActiveTool={(tool) => setActiveTool(tool as any)}
               onAddNode={(type, position, parentId) => {
                 mutations.add.mutate({ workspaceId: activeWorkspace!.id, parentId: parentId || null, label: '', orderIndex: 0, type: type as any, positionX: position.x, positionY: position.y })
               }}

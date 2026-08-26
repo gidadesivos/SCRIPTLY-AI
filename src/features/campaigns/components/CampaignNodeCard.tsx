@@ -46,7 +46,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 
-export interface CampaignNodePayload extends Record<string, unknown> {
+export interface CampaignNodePayload extends Record<string, any> {
   type: CampaignNodeType
   label: string
   properties?: Array<{ iconKey: string; text: string }>
@@ -66,7 +66,7 @@ export interface CampaignNodePayload extends Record<string, unknown> {
   onCopy: (id: string) => void
   onPaste: () => void
   hasClipboard: boolean
-  [key: string]: unknown
+  _originalData?: any
 }
 
 const LEVEL_ICONS: Partial<Record<CampaignNodeType, any>> = {
