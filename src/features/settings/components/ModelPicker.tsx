@@ -110,11 +110,18 @@ export function ModelPicker({ provider }: { provider: ProviderName }) {
     const term = search.trim().toLowerCase()
     return all
       .filter((model) => !chosenIds.has(model.id))
-      .filter(
-        (model) =>
-          !freeOnly ||
-          (model.pricePromptPerMillion === 0 && model.priceCompletionPerMillion === 0),
-      )
+      /*
+       * Esconde só o que SABIDAMENTE custa.
+       *
+       * Exigir preço === 0 sumia com todo modelo cujo catálogo não publica
+       * preço — o do Groq inteiro, que devolve null. Preço desconhecido não é
+       * motivo para o modelo desaparecer da lista; motivo é ele cobrar.
+       */
+      .filter((model) => {
+        if (!freeOnly) return true
+        const custa = (valor: number | null) => valor !== null && valor > 0
+        return !custa(model.pricePromptPerMillion) && !custa(model.priceCompletionPerMillion)
+      })
       .filter(
         (model) =>
           !term || model.id.toLowerCase().includes(term) || model.name.toLowerCase().includes(term),

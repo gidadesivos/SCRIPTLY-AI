@@ -1,4 +1,5 @@
 import { GROQ_MODELS, REQUEST_TIMEOUT_MS } from '../ai-config.ts'
+import type { GeminiSchema } from '../gemini.ts'
 import { ProviderError, type CallOptions, type Provider, type ProviderResult } from './types.ts'
 
 const API_URL = 'https://api.groq.com/openai/v1/chat/completions'
@@ -11,6 +12,56 @@ interface ChatResponse {
   usage?: { prompt_tokens?: number; completion_tokens?: number }
   model?: string
   error?: { message?: string; code?: string | number }
+}
+
+/** GeminiSchema (tipos em MAIÚSCULAS) para JSON Schema (minúsculas). */
+function toJsonSchema(schema: GeminiSchema): Record<string, unknown> {
+  const out: Record<string, unknown> = { type: schema.type.toLowerCase() }
+
+  if (schema.description) out.description = schema.description
+  if (schema.enum) out.enum = schema.enum
+  if (schema.items) out.items = toJsonSchema(schema.items)
+
+  if (schema.properties) {
+    const properties: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(schema.properties)) {
+      properties[key] = toJsonSchema(value)
+    }
+    out.properties = properties
+    out.required = Object.keys(schema.properties)
+    out.additionalProperties = false
+  }
+
+  return out
+}
+
+/**
+ * O schema vai no PROMPT porque o modo json_object não aceita schema.
+ *
+ * Este era o defeito central do provedor: o Gemini recebe o schema pela própria
+ * API e o OpenRouter por response_format json_schema, mas aqui o
+ * options.responseSchema era simplesmente descartado. O modelo recebia "devolva
+ * um objeto JSON válido" e mais nada, tendo que adivinhar o formato pela prosa
+ * do prompt — e o Zod do pipeline rejeitava o palpite. Escrever o schema no
+ * texto é o que dá ao Groq a mesma informação que os outros dois recebem.
+ */
+function withSchema(systemInstruction: string, schema: GeminiSchema): string {
+  return `${systemInstruction}
+
+O JSON da resposta precisa obedecer exatamente a este JSON Schema:
+${JSON.stringify(toJsonSchema(schema), null, 2)}
+
+Responda SÓ com o objeto JSON, sem cerca de markdown e sem texto em volta.
+Toda propriedade listada em "required" precisa estar presente.`
+}
+
+/** Códigos que o Groq manda como texto no corpo, traduzidos para HTTP. */
+const CODE_TO_STATUS: Record<string, number> = {
+  rate_limit_exceeded: 429,
+  insufficient_quota: 402,
+  model_not_found: 404,
+  invalid_api_key: 401,
+  json_validate_failed: 400,
 }
 
 function classify(status: number): ProviderError['kind'] {
@@ -60,7 +111,7 @@ export const groqProvider: Provider = {
           body: JSON.stringify({
             model: currentModel,
             messages: [
-              { role: 'system', content: options.systemInstruction },
+              { role: 'system', content: withSchema(options.systemInstruction, options.responseSchema) },
               { role: 'user', content: options.userPrompt },
             ],
             temperature: options.temperature,
@@ -97,7 +148,16 @@ export const groqProvider: Provider = {
         const body = (await response.json()) as ChatResponse
 
         if (body.error) {
-          const errorCode = typeof body.error.code === 'number' ? body.error.code : 500
+          /*
+           * O Groq manda code como string ("rate_limit_exceeded"), não número.
+           * Jogar tudo que não é número em 500 classificava um estouro de cota
+           * como instabilidade do fornecedor — e a cadeia tratava de um jeito
+           * o que era do outro.
+           */
+          const errorCode =
+            typeof body.error.code === 'number'
+              ? body.error.code
+              : CODE_TO_STATUS[String(body.error.code)] ?? 500
           const kind = classify(errorCode)
           if ((kind === 'rate_limit' || kind === 'upstream') && i < modelsToTry.length - 1) {
             continue
