@@ -23,3 +23,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Skills instaladas por `npx skills add` — ferramental local do agente, não
+# código do produto. O .mcp.json fica versionado (foi criado com --scope
+# project, que significa exatamente isso); estas 212K de markdown de terceiro,
+# não. Reverter: tirar estas linhas e `git add .agents .claude skills-lock.json`.
+.agents/
+.claude/
+skills-lock.json
