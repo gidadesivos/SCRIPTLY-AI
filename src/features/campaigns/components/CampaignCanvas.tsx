@@ -21,7 +21,13 @@ import {
   type CampaignNodePayload,
 } from '@/features/campaigns/components/CampaignNodeCard'
 import { AuxiliaryNodeCard } from '@/features/campaigns/components/AuxiliaryNodeCard'
-import { autoLayout, resolvePosition, type LayoutMode } from '@/features/campaigns/layout'
+import {
+  autoLayout,
+  isSatellite,
+  resolvePosition,
+  satellitePosition,
+  type LayoutMode,
+} from '@/features/campaigns/layout'
 import { SelectionToolbar } from '@/features/campaigns/components/SelectionToolbar'
 import { issuesFor } from '@/features/campaigns/validation'
 import { resolveMedia } from '@/features/campaigns/media'
@@ -103,6 +109,34 @@ export function CampaignCanvas({
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<Node<CampaignNodePayload>>([])
 
+  /*
+   * Posiciona o nó quando quem chamou não sabe onde ele deve ficar.
+   *
+   * O menu de contexto do anúncio mandava { x: 0, y: 0 } — e (0,0) é tratado
+   * como "sem posição", caindo no layout automático, que empurrava o destino
+   * para uma quarta linha da árvore. Aqui o destino nasce ao lado do pai, que
+   * é onde quem está montando a campanha espera vê-lo.
+   */
+  const handleAddNode = useCallback(
+    (type: string, position: { x: number; y: number }, parentId?: string) => {
+      const semPosicao = position.x === 0 && position.y === 0
+
+      if (semPosicao && parentId && isSatellite(type)) {
+        const parent = nodes.find((n) => n.id === parentId)
+        if (parent) {
+          const irmaos = nodes.filter(
+            (n) => n.parent_id === parentId && isSatellite(n.type),
+          ).length
+          onAddNode(type, satellitePosition(parent, irmaos), parentId)
+          return
+        }
+      }
+
+      onAddNode(type, position, parentId)
+    },
+    [nodes, onAddNode],
+  )
+
   useEffect(() => {
     setFlowNodes((current) => {
       const onScreen = new Map(current.map((node) => [node.id, node]))
@@ -129,7 +163,7 @@ export function CampaignCanvas({
             favorite: Boolean(d.favorite),
             _originalData: d,
             onAddChild,
-            onAddNode,
+            onAddNode: handleAddNode,
             onDelete,
             onUpdate: onUpdateNode,
             onDuplicate: onDuplicateNode,
@@ -140,7 +174,7 @@ export function CampaignCanvas({
         }
       })
     })
-  }, [nodes, auto, selectedId, onAddChild, onDelete, onUpdateNode, onDuplicateNode, onCopyNode, onPasteNode, hasClipboard, setFlowNodes])
+  }, [nodes, auto, selectedId, onAddChild, handleAddNode, onDelete, onUpdateNode, onDuplicateNode, onCopyNode, onPasteNode, hasClipboard, setFlowNodes])
 
   const edges = useMemo<Edge[]>(() => {
     const byId = new Map(nodes.map((node) => [node.id, node]))

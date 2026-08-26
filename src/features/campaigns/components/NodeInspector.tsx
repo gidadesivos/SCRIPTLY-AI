@@ -18,8 +18,7 @@ import { FormField } from '@/components/FormField'
 import { TagInput } from '@/components/TagInput'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
-import { Plus, Trash2, Star } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, Trash2, Star } from 'lucide-react'
 import {
   META_AD_FORMATS,
   META_AUDIENCE_TYPES,
@@ -38,7 +37,15 @@ import { ScriptPicker } from '@/features/campaigns/components/ScriptPicker'
 import { MediaField } from '@/features/campaigns/components/MediaField'
 import { AdCopyGenerator } from '@/features/campaigns/components/AdCopyGenerator'
 import type { MediaKind } from '@/features/campaigns/types'
-import { NODE_LABELS, type CampaignNode, type CampaignTask } from '@/features/campaigns/types'
+import {
+  DEFAULT_LEAD_FIELDS,
+  FIELD_TYPES,
+  fieldTypeLabel,
+  NODE_LABELS,
+  type CampaignNode,
+  type CampaignTask,
+  type FormField as LeadField,
+} from '@/features/campaigns/types'
 import type { Option } from '@/config/options'
 
 interface NodeInspectorProps {
@@ -56,6 +63,20 @@ interface NodeInspectorProps {
 export function NodeInspector({ node, scriptContext, onChange }: NodeInspectorProps) {
   const data = node.data as Record<string, unknown>
   const set = (key: string, value: unknown) => onChange({ data: { ...data, [key]: value } })
+
+  /* Construtor de formulário. Todas as edições passam por setFields, para que
+     exista UM ponto que grava — e não uma cópia de `[...campos]` por botão. */
+  const fields = ((data.form_fields as LeadField[] | undefined) ?? []) as LeadField[]
+  const setFields = (next: LeadField[]) => set('form_fields', next)
+  const patchField = (index: number, patch: Partial<LeadField>) =>
+    setFields(fields.map((f, i) => (i === index ? { ...f, ...patch } : f)))
+  const moveField = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= fields.length) return
+    const next = [...fields]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setFields(next)
+  }
 
   return (
     <div className="flex flex-col">
@@ -462,90 +483,168 @@ export function NodeInspector({ node, scriptContext, onChange }: NodeInspectorPr
 
         {node.type === 'formulario' && (
           <AccordionItem value="form_builder">
-            <AccordionTrigger>Construtor de Formulário</AccordionTrigger>
+            <AccordionTrigger>Campos do formulário</AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
-              {((data.form_fields as any[]) ?? []).map((field, i) => (
-                <div key={field.id || i} className="flex flex-col gap-2 rounded border border-border/50 p-2 bg-muted/20">
+              <p className="text-[11px] text-muted-foreground">
+                É o que o lead vê e preenche. A ordem aqui é a ordem no formulário.
+              </p>
+
+              {fields.length === 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() =>
+                    setFields(
+                      DEFAULT_LEAD_FIELDS.map((f) => ({
+                        id: crypto.randomUUID(),
+                        label: f.label,
+                        type: f.type,
+                        required: true,
+                        options: [],
+                        help: '',
+                      })),
+                    )
+                  }
+                >
+                  <Star className="mr-1 h-3.5 w-3.5" />
+                  Começar com Nome, WhatsApp e E-mail
+                </Button>
+              )}
+
+              {fields.map((field, i) => (
+                <div
+                  key={field.id || i}
+                  className="flex flex-col gap-2 rounded border border-border/50 bg-muted/20 p-2"
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium">Campo {i + 1}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 hover:text-destructive"
-                      onClick={() => {
-                        const next = [...((data.form_fields as any[]) ?? [])]
-                        next.splice(i, 1)
-                        set('form_fields', next)
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      {i + 1}. {fieldTypeLabel(field.type)}
+                    </span>
+                    <div className="flex items-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        aria-label="Subir campo"
+                        disabled={i === 0}
+                        onClick={() => moveField(i, -1)}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        aria-label="Descer campo"
+                        disabled={i === fields.length - 1}
+                        onClick={() => moveField(i, 1)}
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 hover:text-destructive"
+                        aria-label={`Remover campo ${i + 1}`}
+                        onClick={() => setFields(fields.filter((_, idx) => idx !== i))}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
+
                   <div className="flex items-center gap-2">
                     <Input
-                      className="h-8 text-xs flex-1"
-                      placeholder="Rótulo (ex: E-mail)"
+                      className="h-8 flex-1 text-xs"
+                      placeholder="Pergunta (ex: Possui arte/design?)"
                       value={field.label}
-                      onChange={(e) => {
-                        const next = [...((data.form_fields as any[]) ?? [])]
-                        next[i] = { ...next[i], label: e.target.value }
-                        set('form_fields', next)
-                      }}
+                      onChange={(e) => patchField(i, { label: e.target.value })}
                     />
                     <select
                       className="h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs outline-none"
+                      aria-label={`Tipo do campo ${i + 1}`}
                       value={field.type}
-                      onChange={(e) => {
-                        const next = [...((data.form_fields as any[]) ?? [])]
-                        next[i] = { ...next[i], type: e.target.value }
-                        set('form_fields', next)
-                      }}
+                      onChange={(e) => patchField(i, { type: e.target.value })}
                     >
-                      <option value="text">Texto</option>
-                      <option value="email">E-mail</option>
-                      <option value="phone">Telefone</option>
-                      <option value="select">Lista</option>
+                      {FIELD_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
-                  <label className="flex items-center gap-2 mt-1 cursor-pointer">
+
+                  {/* Lista sem opção nenhuma não é uma lista: o campo aparece
+                      para o lead sem nada para escolher. */}
+                  {field.type === 'select' && (
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Opções separadas por vírgula"
+                      value={(field.options ?? []).join(', ')}
+                      onChange={(e) =>
+                        patchField(i, {
+                          options: e.target.value
+                            .split(',')
+                            .map((o) => o.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                    />
+                  )}
+
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="Dica abaixo do campo (opcional)"
+                    value={field.help ?? ''}
+                    onChange={(e) => patchField(i, { help: e.target.value })}
+                  />
+
+                  <label className="mt-1 flex cursor-pointer items-center gap-2">
                     <Checkbox
                       checked={field.required}
-                      onCheckedChange={(c) => {
-                        const next = [...((data.form_fields as any[]) ?? [])]
-                        next[i] = { ...next[i], required: Boolean(c) }
-                        set('form_fields', next)
-                      }}
+                      onCheckedChange={(c) => patchField(i, { required: Boolean(c) })}
                     />
-                    <span className="text-[11px] font-medium text-muted-foreground">Obrigatório</span>
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Obrigatório
+                    </span>
                   </label>
                 </div>
               ))}
-              
+
               <Button
                 variant="outline"
                 size="sm"
                 className="mt-1 w-full text-xs"
-                onClick={() => {
-                  const next = [...((data.form_fields as any[]) ?? [])]
-                  next.push({ id: crypto.randomUUID(), label: '', type: 'text', required: true })
-                  set('form_fields', next)
-                }}
+                onClick={() =>
+                  setFields([
+                    ...fields,
+                    {
+                      id: crypto.randomUUID(),
+                      label: '',
+                      type: 'text',
+                      required: true,
+                      options: [],
+                      help: '',
+                    },
+                  ])
+                }
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                Adicionar Campo
+                Adicionar campo
               </Button>
-              
-              {((data.form_fields as any[]) ?? []).length > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="mt-2 w-full text-xs bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 hover:text-blue-600"
-                  onClick={() => toast.success('Predefinição salva com sucesso nas Configurações da Conta!')}
-                >
-                  <Star className="mr-1 h-3.5 w-3.5" />
-                  Salvar Predefinição
-                </Button>
-              )}
+
+              <div className="mt-1 flex flex-col gap-1.5">
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  Texto do botão
+                </span>
+                <Input
+                  className="h-8 text-xs"
+                  placeholder="Cadastre-se"
+                  value={String(data.submit_label ?? '')}
+                  onChange={(e) => set('submit_label', e.target.value)}
+                />
+              </div>
             </AccordionContent>
           </AccordionItem>
         )}

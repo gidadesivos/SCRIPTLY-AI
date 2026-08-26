@@ -1,7 +1,17 @@
 /**
- * Mock interface for Meta Graph API integration.
- * Em um cenário real, estas requisições bateriam em:
- * https://graph.facebook.com/v19.0/{campaign-id}/insights
+ * Métricas do Meta — ainda NÃO integradas.
+ *
+ * Este módulo devolvia números de `Math.random()` com 1,5s de atraso fingido,
+ * e a tabela os exibia como ROAS, CPA e cliques reais. Um gestor de tráfego
+ * podia decidir orçamento olhando para um número sorteado.
+ *
+ * Enquanto a integração não existe, a única resposta honesta é "não tenho esse
+ * dado". Quem chama trata `null` mostrando "—", em vez de inventar.
+ *
+ * Para ligar de verdade: a chamada é
+ * GET https://graph.facebook.com/v23.0/{id}/insights, e o token de acesso do
+ * Meta NÃO pode viver no bundle do cliente — precisa de uma Edge Function,
+ * como já é feito com as chaves de IA.
  */
 
 export interface MetaMetrics {
@@ -13,25 +23,17 @@ export interface MetaMetrics {
   conversions: number
 }
 
-// Simula a latência de rede e a busca de dados reais da Meta
-export async function fetchMetaMetrics(campaignIds: string[]): Promise<Record<string, MetaMetrics>> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const results: Record<string, MetaMetrics> = {}
-      
-      campaignIds.forEach((id) => {
-        // Gerando números aleatórios mais realistas para os mocks
-        results[id] = {
-          spend: Math.random() * 500 + 100,
-          roas: Number((Math.random() * 3 + 1.5).toFixed(2)),
-          cpa: Number((Math.random() * 30 + 15).toFixed(2)),
-          clicks: Math.floor(Math.random() * 3000 + 500),
-          impressions: Math.floor(Math.random() * 50000 + 10000),
-          conversions: Math.floor(Math.random() * 100 + 10),
-        }
-      })
-      
-      resolve(results)
-    }, 1500) // 1.5s delay
-  })
+/** true quando houver integração de verdade. Hoje não há. */
+export const META_METRICS_ENABLED = false
+
+/**
+ * Devolve vazio: nenhum nó tem métrica conhecida.
+ *
+ * Assinatura preservada para quando a integração chegar — o que muda é o
+ * corpo, não quem chama.
+ */
+export async function fetchMetaMetrics(
+  _campaignIds: string[],
+): Promise<Record<string, MetaMetrics>> {
+  return {}
 }

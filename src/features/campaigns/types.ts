@@ -114,14 +114,65 @@ export const anuncioDataSchema = baseDataSchema.extend({
   utm: text,
 })
 
+/**
+ * Tipos de campo que o lead preenche.
+ *
+ * A lista é fechada porque cada tipo decide a máscara, o teclado do celular e
+ * o exemplo mostrado no card. Um tipo solto em string deixava tudo virar
+ * "Sua resposta..." — inclusive telefone e CEP, onde o formato é o que evita
+ * lead digitado errado.
+ */
+export const FIELD_TYPES = [
+  { value: 'text', label: 'Texto', placeholder: 'Sua resposta…' },
+  { value: 'email', label: 'E-mail', placeholder: 'exemplo@email.com' },
+  { value: 'phone', label: 'Telefone / WhatsApp', placeholder: '(11) 99999-9999' },
+  { value: 'number', label: 'Número', placeholder: '0' },
+  { value: 'cep', label: 'CEP', placeholder: '00000-000' },
+  { value: 'date', label: 'Data', placeholder: 'dd/mm/aaaa' },
+  { value: 'textarea', label: 'Texto longo', placeholder: 'Escreva aqui…' },
+  { value: 'select', label: 'Lista de opções', placeholder: 'Escolha uma opção' },
+  { value: 'boolean', label: 'Sim / Não', placeholder: 'Sim ou Não' },
+] as const
+
+export type FormFieldType = (typeof FIELD_TYPES)[number]['value']
+
+export function fieldPlaceholder(type: string): string {
+  return FIELD_TYPES.find((f) => f.value === type)?.placeholder ?? 'Sua resposta…'
+}
+
+export function fieldTypeLabel(type: string): string {
+  return FIELD_TYPES.find((f) => f.value === type)?.label ?? type
+}
+
+/**
+ * Os três que praticamente todo formulário de lead pede. Existem como atalho
+ * porque montar isso campo a campo, toda vez, é o trabalho repetitivo que a
+ * tela deveria poupar.
+ */
+export const DEFAULT_LEAD_FIELDS: Array<{ label: string; type: FormFieldType }> = [
+  { label: 'Nome', type: 'text' },
+  { label: 'WhatsApp', type: 'phone' },
+  { label: 'E-mail', type: 'email' },
+]
+
+export const formFieldSchema = z.object({
+  id: z.string(),
+  type: z.string().catch('text'),
+  label: z.string().catch(''),
+  required: z.boolean().catch(false),
+  /** Só usado quando type é 'select'. */
+  options: z.array(z.string()).catch([]),
+  /** Dica abaixo do campo, opcional. */
+  help: z.string().catch(''),
+})
+
+export type FormField = z.infer<typeof formFieldSchema>
+
 export const formularioDataSchema = baseDataSchema.extend({
   title: text,
-  form_fields: z.array(z.object({
-    id: z.string(),
-    type: z.string(),
-    label: z.string(),
-    required: z.boolean(),
-  })).catch([]),
+  /** Texto do botão de envio. Vazio cai no padrão na hora de renderizar. */
+  submit_label: text,
+  form_fields: z.array(formFieldSchema).catch([]),
 })
 
 export type CampanhaData = z.infer<typeof campanhaDataSchema>

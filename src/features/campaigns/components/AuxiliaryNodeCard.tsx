@@ -14,6 +14,7 @@ import {
   FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { fieldPlaceholder } from '@/features/campaigns/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from '@/components/ui/context-menu'
 import type { CampaignNodePayload } from './CampaignNodeCard'
 import { useState } from 'react'
@@ -285,18 +286,36 @@ export function AuxiliaryNodeCard({ id, data, type, selected }: NodeProps) {
           ) : (
             fields.map((f: any, i: number) => (
               <div key={f.id || i} className="flex flex-col gap-1">
-                <span className="text-[10px] font-medium text-muted-foreground ml-1">
-                  {f.label} {f.required && <span className="text-red-400">*</span>}
+                <span className="ml-1 text-[10px] font-medium text-muted-foreground">
+                  {f.label || 'Sem pergunta'}{' '}
+                  {f.required && <span className="text-destructive">*</span>}
                 </span>
-                <div className="h-8 w-full bg-black/40 border border-white/10 rounded px-2 flex items-center text-[11px] text-white/30">
-                  {f.type === 'email' ? 'exemplo@email.com' : f.type === 'phone' ? '(11) 99999-9999' : 'Sua resposta...'}
+                {/* O exemplo vem do tipo do campo — é ele que diz ao lead qual
+                    formato esperar. Antes tudo que não era e-mail ou telefone
+                    virava "Sua resposta...", inclusive CEP e data. */}
+                <div
+                  className={cn(
+                    'flex w-full items-center rounded border border-white/10 bg-black/40 px-2 text-[11px] text-white/30',
+                    f.type === 'textarea' ? 'h-14 items-start pt-1.5' : 'h-8',
+                  )}
+                >
+                  {f.type === 'select'
+                    ? (f.options?.length ?? 0) > 0
+                      ? f.options[0]
+                      : 'Lista sem opções'
+                    : f.type === 'boolean'
+                      ? 'Sim / Não'
+                      : fieldPlaceholder(f.type)}
                 </div>
+                {f.help && (
+                  <span className="ml-1 text-[9px] text-muted-foreground/70">{f.help}</span>
+                )}
               </div>
             ))
           )}
         </div>
-        <button className="nodrag mt-2 w-full py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold transition-colors">
-          Cadastre-se
+        <button className="nodrag mt-2 w-full rounded bg-blue-600 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-blue-500">
+          {String(formData?.submit_label || 'Cadastre-se')}
         </button>
       </div>
     )
