@@ -68,6 +68,10 @@ const nodeTypes = {
   anuncio: CampaignNodeCard as React.ComponentType<NodeProps>,
   publico: AuxiliaryNodeCard as React.ComponentType<NodeProps>,
   landing_page: AuxiliaryNodeCard as React.ComponentType<NodeProps>,
+  // Faltava: a migration 0015 criou o tipo e o AuxiliaryNodeCard sabe desenhá-lo,
+  // mas sem entrada aqui o React Flow caía no nó padrão — o card do formulário
+  // aparecia como um retângulo vazio com o nome solto no meio.
+  formulario: AuxiliaryNodeCard as React.ComponentType<NodeProps>,
   whatsapp: AuxiliaryNodeCard as React.ComponentType<NodeProps>,
   oferta: AuxiliaryNodeCard as React.ComponentType<NodeProps>,
   pixel_evento: AuxiliaryNodeCard as React.ComponentType<NodeProps>,

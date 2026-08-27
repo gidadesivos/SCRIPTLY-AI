@@ -29,6 +29,7 @@ import {
 } from '@/features/campaigns/meta-options'
 import { ALLOWED_CHILD, NODE_LABELS, type CampaignNodeType } from '@/features/campaigns/types'
 import { cn } from '@/lib/utils'
+import { LINK_HANDLE, STRUCTURAL_HANDLE } from '@/features/campaigns/handle-style'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -150,7 +151,14 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            'group w-64 overflow-hidden rounded-xl border bg-card/95 backdrop-blur-sm text-card-foreground shadow-sm transition-all duration-300 ease-out relative',
+            /*
+             * SEM overflow-hidden: os handles ficam metade para fora da borda,
+             * e o clipping cortava justamente a metade clicável — o ponto
+             * central do handle acertava a div do card, não o handle. Era isso
+             * que impedia ligar dois nós arrastando. A faixa do topo ganhou
+             * raio próprio para as quinas continuarem arredondadas.
+             */
+            'group relative w-64 rounded-xl border bg-card/95 backdrop-blur-sm text-card-foreground shadow-sm transition-all duration-300 ease-out',
             style.border,
             selected ? cn('shadow-lg ring-2 ring-offset-1 ring-offset-background scale-[1.02] z-10', style.ring) : 'hover:shadow-lg hover:-translate-y-1',
             payload.locked ? 'nodrag' : ''
@@ -163,7 +171,7 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
               id="parent"
               type="target"
               position={Position.Left}
-              className="!h-2.5 !w-2.5 !border-0"
+              className={cn(STRUCTURAL_HANDLE, style.band)}
               style={{ background: style.hex }}
               title="Conectar a uma campanha para mover este nó"
             />
@@ -173,18 +181,18 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
             id="link-in"
             type="target"
             position={Position.Top}
-            className="!h-2.5 !w-2.5 !border-2 !border-background !bg-muted-foreground opacity-0 transition-all duration-300 group-hover:opacity-100 hover:!scale-150"
+            className={LINK_HANDLE}
             title="Receber uma ligação de anotação"
           />
           <Handle
             id="link-out"
             type="source"
             position={Position.Bottom}
-            className="!h-2.5 !w-2.5 !border-2 !border-background !bg-muted-foreground opacity-0 transition-all duration-300 group-hover:opacity-100 hover:!scale-150"
+            className={LINK_HANDLE}
             title="Ligar a outro nó (anotação, qualquer direção)"
           />
 
-          <div className={cn('flex items-center gap-1.5 px-3 py-1.5', style.band)}>
+          <div className={cn('flex items-center gap-1.5 rounded-t-[11px] px-3 py-1.5', style.band)}>
             <Icon className={cn('h-3.5 w-3.5 shrink-0', style.text)} />
             <span className={cn('text-[10px] font-semibold uppercase tracking-wider', style.text)}>
               {NODE_LABELS[payload.type]}
@@ -358,7 +366,7 @@ function CampaignNodeCardComponent({ id, data, selected }: NodeProps) {
               id="child"
               type="source"
               position={Position.Right}
-              className="!h-2.5 !w-2.5 !border-0"
+              className={cn(STRUCTURAL_HANDLE, style.band)}
               style={{ background: style.hex }}
               title={payload.type === 'anuncio' ? 'Conectar a um Destino' : `Conectar a um ${NODE_LABELS[childType!]?.toLowerCase() || 'nó'} para trazê-lo para cá`}
             />

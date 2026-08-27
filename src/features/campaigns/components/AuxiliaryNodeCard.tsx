@@ -14,7 +14,8 @@ import {
   FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { fieldPlaceholder } from '@/features/campaigns/types'
+import { LINK_HANDLE, STRUCTURAL_HANDLE } from '@/features/campaigns/handle-style'
+import { fieldPlaceholder, fieldTypeLabel, type FormField } from '@/features/campaigns/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from '@/components/ui/context-menu'
 import type { CampaignNodePayload } from './CampaignNodeCard'
 import { useState } from 'react'
@@ -72,14 +73,14 @@ export function AuxiliaryNodeCard({ id, data, type, selected }: NodeProps) {
           type="target"
           position={Position.Left}
           id="parent"
-          className="!h-2.5 !w-2.5 !border-0 !bg-emerald-400"
+          className={cn(STRUCTURAL_HANDLE, "!bg-emerald-400")}
         />
       )}
-      <Handle type="target" position={Position.Top} id="link-in" className="h-2 w-2 rounded-full border-2 border-[#14141C] bg-[#6E6E85] opacity-0 transition-opacity group-hover:opacity-100" />
-      <Handle type="source" position={Position.Bottom} id="link-out" className="h-2 w-2 rounded-full border-2 border-[#14141C] bg-[#6E6E85] opacity-0 transition-opacity group-hover:opacity-100" />
-      <Handle type="source" position={Position.Right} id="link-right" className="h-2 w-2 rounded-full border-2 border-[#14141C] bg-[#6E6E85] opacity-0 transition-opacity group-hover:opacity-100" />
+      <Handle type="target" position={Position.Top} id="link-in" className={LINK_HANDLE} />
+      <Handle type="source" position={Position.Bottom} id="link-out" className={LINK_HANDLE} />
+      <Handle type="source" position={Position.Right} id="link-right" className={LINK_HANDLE} />
       {!isDestination && (
-        <Handle type="target" position={Position.Left} id="link-left" className="h-2 w-2 rounded-full border-2 border-[#14141C] bg-[#6E6E85] opacity-0 transition-opacity group-hover:opacity-100" />
+        <Handle type="target" position={Position.Left} id="link-left" className={LINK_HANDLE} />
       )}
     </>
   )
@@ -244,77 +245,119 @@ export function AuxiliaryNodeCard({ id, data, type, selected }: NodeProps) {
   )
 
   const renderFormulario = () => {
-    const formData = payload._originalData as any
-    const fields = formData?.form_fields || []
-    
+    const formData = payload._originalData as Record<string, unknown> | undefined
+    const fields = ((formData?.form_fields as FormField[] | undefined) ?? []) as FormField[]
+    const obrigatorios = fields.filter((f) => f.required).length
+
+    /*
+     * O card imita o formulário que o lead vai ver, em miniatura.
+     *
+     * Antes era uma pilha de retângulos escuros todos iguais, sem cabeçalho
+     * destacado e sem dizer quantos campos existiam — de longe, dois
+     * formulários diferentes eram indistinguíveis. Agora tem barra de
+     * identidade no topo, contagem de campos, e cada linha mostra o tipo, para
+     * dar para conferir a estrutura sem abrir o painel.
+     */
     return (
       <div
         className={cn(
-          'group relative flex flex-col gap-3 rounded-xl border border-blue-500/30 bg-gradient-to-b from-[#14141C] to-[#1A1A24] p-4 min-w-[260px] shadow-lg transition-all',
-          selected ? 'ring-2 ring-blue-500/50' : 'hover:border-blue-500/50'
+          // Sem overflow-hidden pelo mesmo motivo do card de campanha: ele
+          // recortava a metade externa dos handles e matava o arrastar-para-ligar.
+          'group relative flex w-[268px] flex-col rounded-xl border bg-card shadow-lg transition-all',
+          selected
+            ? 'border-blue-500/60 ring-2 ring-blue-500/40'
+            : 'border-blue-500/25 hover:border-blue-500/50',
         )}
         onDoubleClick={() => setIsEditing(true)}
       >
-        <NodeResizer isVisible={selected} minWidth={220} minHeight={150} handleClassName="h-2 w-2 bg-blue-400 rounded-sm" lineClassName="border-blue-400/50" />
+        <NodeResizer
+          isVisible={selected}
+          minWidth={240}
+          minHeight={160}
+          handleClassName="h-2 w-2 bg-blue-400 rounded-sm"
+          lineClassName="border-blue-400/50"
+        />
         {renderHandles()}
-        <div className="flex items-center gap-2 mb-1">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
-            <Icon className="h-5 w-5" />
-          </div>
-          <div className="flex flex-col flex-1">
-            <span className="text-[10px] uppercase font-bold text-blue-500/80 tracking-wider">Formulário de Lead</span>
+
+        {/* Faixa de identidade: mesma leitura dos cards de campanha. */}
+        <div className="flex items-center gap-2 rounded-t-[11px] border-b border-blue-500/20 bg-blue-500/10 px-3 py-2">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-500/20 text-blue-300">
+            <Icon className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-blue-400/90">
+              Formulário de lead
+            </p>
             {isEditing ? (
               <input
                 autoFocus
-                className="w-full bg-transparent outline-none ring-0 placeholder:text-muted-foreground text-sm font-semibold text-blue-50"
+                className="w-full bg-transparent text-[12px] font-semibold text-blue-50 outline-none"
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
               />
             ) : (
-              <span className="text-sm font-semibold text-blue-50 block truncate max-w-[180px]">{payload.label || 'Novo Formulário'}</span>
+              <p className="truncate text-[12px] font-semibold text-blue-50">
+                {payload.label || 'Novo formulário'}
+              </p>
             )}
           </div>
+          {fields.length > 0 && (
+            <span
+              className="shrink-0 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-blue-300"
+              title={`${fields.length} campos, ${obrigatorios} obrigatórios`}
+            >
+              {fields.length}
+            </span>
+          )}
         </div>
-        
-        <div className="flex flex-col gap-2 mt-2 nodrag">
+
+        <div className="nodrag flex flex-col gap-2 px-3 py-2.5">
           {fields.length === 0 ? (
-            <div className="text-[11px] text-muted-foreground italic text-center py-4 bg-white/5 rounded border border-white/10">Nenhum campo.<br/>Configure no menu lateral.</div>
+            <p className="rounded-md border border-dashed border-white/10 py-3 text-center text-[10px] leading-relaxed text-muted-foreground">
+              Nenhum campo ainda.
+              <br />
+              Abra o painel lateral para montar.
+            </p>
           ) : (
-            fields.map((f: any, i: number) => (
-              <div key={f.id || i} className="flex flex-col gap-1">
-                <span className="ml-1 text-[10px] font-medium text-muted-foreground">
-                  {f.label || 'Sem pergunta'}{' '}
-                  {f.required && <span className="text-destructive">*</span>}
-                </span>
-                {/* O exemplo vem do tipo do campo — é ele que diz ao lead qual
-                    formato esperar. Antes tudo que não era e-mail ou telefone
-                    virava "Sua resposta...", inclusive CEP e data. */}
+            fields.map((f, i) => (
+              <div key={f.id || i} className="flex flex-col gap-0.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-[10px] font-medium text-white/70">
+                    {f.label || 'Sem pergunta'}
+                    {f.required && <span className="ml-0.5 text-destructive">*</span>}
+                  </span>
+                  {/* O tipo à direita deixa conferir a estrutura sem abrir nada. */}
+                  <span className="shrink-0 text-[8px] uppercase tracking-wide text-white/25">
+                    {fieldTypeLabel(f.type)}
+                  </span>
+                </div>
                 <div
                   className={cn(
-                    'flex w-full items-center rounded border border-white/10 bg-black/40 px-2 text-[11px] text-white/30',
-                    f.type === 'textarea' ? 'h-14 items-start pt-1.5' : 'h-8',
+                    'flex w-full items-center rounded-md border border-white/10 bg-black/30 px-2 text-[10px] text-white/30',
+                    f.type === 'textarea' ? 'h-10 items-start pt-1.5' : 'h-7',
                   )}
                 >
                   {f.type === 'select'
                     ? (f.options?.length ?? 0) > 0
-                      ? f.options[0]
+                      ? f.options.join(' · ')
                       : 'Lista sem opções'
                     : f.type === 'boolean'
                       ? 'Sim / Não'
                       : fieldPlaceholder(f.type)}
                 </div>
                 {f.help && (
-                  <span className="ml-1 text-[9px] text-muted-foreground/70">{f.help}</span>
+                  <span className="text-[8px] leading-tight text-white/25">{f.help}</span>
                 )}
               </div>
             ))
           )}
+
+          <button className="nodrag mt-1 w-full rounded-md bg-blue-600 py-1.5 text-[10px] font-semibold text-white transition-colors hover:bg-blue-500">
+            {String(formData?.submit_label || 'Cadastre-se')}
+          </button>
         </div>
-        <button className="nodrag mt-2 w-full rounded bg-blue-600 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-blue-500">
-          {String(formData?.submit_label || 'Cadastre-se')}
-        </button>
       </div>
     )
   }
