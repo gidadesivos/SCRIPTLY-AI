@@ -24,13 +24,15 @@ import { PlanDocument } from '@/features/campaigns/components/PlanDocument'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useNodeMutations, usePlan } from '@/features/campaigns/hooks/usePlan'
 import { planTotals } from '@/features/campaigns/validation'
-import { ALLOWED_CHILD, NODE_LABELS, type CampaignNode } from '@/features/campaigns/types'
+import { ALLOWED_CHILD, type CampaignNode } from '@/features/campaigns/types'
 import { getScriptWithScenes } from '@/features/scripts/api'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { useActiveBrand } from '@/features/brands/hooks/useActiveBrand'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { dbErrorMessage } from '@/lib/db-errors'
 import { CanvasSidebar, type ToolType } from '@/features/campaigns/components/CanvasSidebar'
+import { nodeIdentity } from '@/features/campaigns/node-identity'
+import { cn } from '@/lib/utils'
 
 export function PlanBoardPage() {
   const { planId } = useParams<{ planId: string }>()
@@ -399,31 +401,74 @@ export function PlanBoardPage() {
       </div>
 
       {draft && (
-        <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-[#1E1E28] bg-[#0E0E14] p-4 text-[#EDEDF2]">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-sans text-[14px] font-semibold">{NODE_LABELS[draft.type]}</h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-[#8C8CA0] hover:bg-[#1E1E28] hover:text-[#EDEDF2]"
-              aria-label="Fechar painel"
-              onClick={() => setSelectedId(null)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+        /*
+         * Coluna com cabeçalho fixo e conteúdo rolando por dentro.
+         *
+         * Antes o <aside> inteiro rolava: o nome do nó e o botão de fechar
+         * subiam junto com os campos, e a poucos cliques de rolagem já não dava
+         * para saber qual card estava aberto.
+         */
+        <aside className="flex w-[340px] shrink-0 flex-col border-l border-[#1E1E28] bg-[#0E0E14] text-[#EDEDF2]">
+          <header className="shrink-0 border-b border-[#1E1E28] px-4 py-3">
+            <div className="flex items-start gap-2.5">
+              {(() => {
+                const identidade = nodeIdentity(draft.type)
+                const Icone = identidade.icon
+                return (
+                  <span
+                    className={cn(
+                      'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                      identidade.tint,
+                      identidade.accent,
+                    )}
+                  >
+                    <Icone className="h-4 w-4" />
+                  </span>
+                )
+              })()}
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="mb-4 h-9 w-full border-[#23232F] bg-[#14141C] text-[#8C8CA0] hover:text-[#EDEDF2]"
-            onClick={() => mutations.duplicate.mutate({ nodeId: draft.id, allNodes: nodes })}
-            disabled={mutations.duplicate.isPending}
-          >
-            <Copy className="mr-2 h-4 w-4" />
-            Duplicar com descendentes
-          </Button>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={cn(
+                    'text-[10px] font-semibold uppercase tracking-wider',
+                    nodeIdentity(draft.type).accent,
+                  )}
+                >
+                  {nodeIdentity(draft.type).label}
+                </p>
+                {/* O nome no cabeçalho responde "qual card eu abri?" sem exigir
+                    rolar até o campo Nome lá embaixo. */}
+                <p className="truncate text-[13px] font-medium text-[#EDEDF2]">
+                  {draft.label || 'Sem nome'}
+                </p>
+              </div>
 
+              <div className="flex shrink-0 items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-[#8C8CA0] hover:bg-[#1E1E28] hover:text-[#EDEDF2]"
+                  aria-label="Duplicar com descendentes"
+                  title="Duplicar com descendentes"
+                  disabled={mutations.duplicate.isPending}
+                  onClick={() => mutations.duplicate.mutate({ nodeId: draft.id, allNodes: nodes })}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-[#8C8CA0] hover:bg-[#1E1E28] hover:text-[#EDEDF2]"
+                  aria-label="Fechar painel"
+                  onClick={() => setSelectedId(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </header>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
           <NodeInspector
             node={draft}
             scriptContext={scriptContext}
@@ -453,6 +498,7 @@ export function PlanBoardPage() {
               )
             }}
           />
+          </div>
         </aside>
       )}
     </div>

@@ -46,7 +46,6 @@ import {
   DEFAULT_LEAD_FIELDS,
   FIELD_TYPES,
   fieldTypeLabel,
-  NODE_LABELS,
   type CampaignNode,
   type CampaignTask,
   type FormField as LeadField,
@@ -110,14 +109,8 @@ export function NodeInspector({ node, scriptContext, onChange }: NodeInspectorPr
 
   return (
     <div className="flex flex-col">
-      <div className="mb-4">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          {NODE_LABELS[node.type]}
-        </p>
-      </div>
-
       <Accordion type="multiple" defaultValue={['geral', 'tarefas', 'config', 'orcamento', 'publico', 'criativo', 'observacoes']} className="w-full">
-        <AccordionItem value="geral">
+        <AccordionItem value="geral" className="border-b border-border/60">
           <AccordionTrigger>Geral</AccordionTrigger>
           <AccordionContent className="flex flex-col gap-4">
             <FormField label="Nome">
