@@ -239,9 +239,7 @@ export function AuxiliaryNodeCard({ id, data, type, selected }: NodeProps) {
             <span className="truncate max-w-[200px]">{payload.label || 'https://...'}</span>
           )}
       </div>
-      <div className="h-24 w-full bg-[#1E1E28] rounded-lg mt-1 border border-white/5 flex items-center justify-center overflow-hidden relative">
-         <span className="text-[10px] text-white/20 font-medium tracking-widest uppercase">Preview Indisponível</span>
-      </div>
+      <LandingPreview data={payload._originalData as Record<string, unknown>} />
     </div>
   )
 
@@ -381,5 +379,61 @@ export function AuxiliaryNodeCard({ id, data, type, selected }: NodeProps) {
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  )
+}
+
+
+/**
+ * Cartão Open Graph da página de destino.
+ *
+ * Não é um <iframe> de propósito: a maioria dos sites manda X-Frame-Options ou
+ * CSP frame-ancestors e recusa ser embutida, então o iframe mostraria uma caixa
+ * branca na maior parte das vezes. Aqui aparece o que o próprio site publica
+ * para ser compartilhado — imagem, título e domínio —, buscado pela Edge
+ * Function link-preview.
+ *
+ * Sem preview buscado ainda, a caixa DIZ o que fazer em vez de anunciar
+ * "Preview Indisponível", que soava como defeito do app.
+ */
+function LandingPreview({ data }: { data: Record<string, unknown> }) {
+  const imagem = String(data.preview_image ?? '')
+  const titulo = String(data.preview_title ?? '')
+  const site = String(data.preview_site ?? '')
+  const temUrl = Boolean(String(data.url ?? ''))
+
+  if (!imagem && !titulo) {
+    return (
+      <div className="mt-1 flex h-24 w-full items-center justify-center rounded-lg border border-white/5 bg-[#1E1E28] px-3 text-center">
+        <span className="text-[10px] leading-relaxed text-white/30">
+          {temUrl
+            ? 'Abra o painel lateral e toque em "Buscar preview".'
+            : 'Cole o endereço da página no painel lateral.'}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-1 w-full overflow-hidden rounded-lg border border-white/5 bg-[#1E1E28]">
+      {imagem ? (
+        <img
+          src={imagem}
+          alt=""
+          className="h-20 w-full object-cover"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={(event) => {
+            // Imagem quebrada some em vez de virar um ícone de erro no canvas.
+            event.currentTarget.style.display = 'none'
+          }}
+        />
+      ) : null}
+      <div className="flex flex-col gap-0.5 px-2 py-1.5">
+        {titulo && (
+          <span className="truncate text-[11px] font-medium text-sky-50">{titulo}</span>
+        )}
+        {site && <span className="truncate text-[9px] uppercase text-white/30">{site}</span>}
+      </div>
+    </div>
   )
 }

@@ -99,19 +99,22 @@ function isResponse(value: unknown): value is Response {
   )
 }
 
-async function invoke<T>(payload: Record<string, unknown>): Promise<T> {
+async function invoke<T>(
+  payload: Record<string, unknown>,
+  functionName = 'ai-generate',
+): Promise<T> {
   if (!navigator.onLine) throw new AiError(strings.errors.offline, 'offline')
 
   const { data: sessionData } = await supabase.auth.getSession()
   if (!sessionData.session) throw new AiError(strings.errors.sessionExpired, 'unauthorized')
 
-  const { data, error } = await supabase.functions.invoke<{ data: T }>('ai-generate', {
+  const { data, error } = await supabase.functions.invoke<{ data: T }>(functionName, {
     body: payload,
   })
 
   if (error) {
     // O erro real nunca deve sumir: sem isto, "algo deu errado" não dá para depurar.
-    console.error('[ai-generate] falha na invocação:', error)
+    console.error(`[${functionName}] falha na invocação:`, error)
 
     const context = (error as { context?: unknown }).context
 
@@ -295,4 +298,23 @@ export interface CatalogModel {
 /** Catálogo de modelos. Passa pela Edge Function: a chave não sai do servidor. */
 export function listModels(workspaceId: string, provider: ProviderName) {
   return invoke<{ models: CatalogModel[] }>({ operation: 'listModels', workspaceId, provider })
+}
+
+export interface LinkPreview {
+  url: string
+  title: string
+  description: string
+  image: string
+  site: string
+}
+
+/**
+ * Cartão Open Graph de uma URL, para o card de página de destino.
+ *
+ * Passa pela Edge Function e não pelo navegador por dois motivos: fetch de
+ * site de terceiro esbarra em CORS, e um <iframe> — a solução "óbvia" — é
+ * recusado pela maioria dos sites via X-Frame-Options.
+ */
+export function fetchLinkPreview(workspaceId: string, url: string): Promise<LinkPreview> {
+  return invoke<LinkPreview>({ workspaceId, url }, 'link-preview')
 }

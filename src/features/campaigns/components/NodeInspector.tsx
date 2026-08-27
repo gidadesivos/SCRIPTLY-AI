@@ -18,7 +18,12 @@ import { FormField } from '@/components/FormField'
 import { TagInput } from '@/components/TagInput'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { ArrowDown, ArrowUp, Plus, Trash2, Star } from 'lucide-react'
+import { ArrowDown, ArrowUp, Loader2, Plus, RefreshCw, Trash2, Star } from 'lucide-react'
+import { useMutation } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { AiError, fetchLinkPreview } from '@/lib/ai'
+import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
+import { strings } from '@/i18n/pt-BR'
 import {
   META_AD_FORMATS,
   META_AUDIENCE_TYPES,
@@ -61,6 +66,8 @@ interface NodeInspectorProps {
 }
 
 export function NodeInspector({ node, scriptContext, onChange }: NodeInspectorProps) {
+  const { activeWorkspace } = useActiveWorkspace()
+  const workspaceId = activeWorkspace?.id ?? ''
   const data = node.data as Record<string, unknown>
   const set = (key: string, value: unknown) => onChange({ data: { ...data, [key]: value } })
 
@@ -70,6 +77,29 @@ export function NodeInspector({ node, scriptContext, onChange }: NodeInspectorPr
   const setFields = (next: LeadField[]) => set('form_fields', next)
   const patchField = (index: number, patch: Partial<LeadField>) =>
     setFields(fields.map((f, i) => (i === index ? { ...f, ...patch } : f)))
+  /*
+   * O preview vem da Edge Function, não do navegador: fetch de site de terceiro
+   * esbarra em CORS, e a busca no servidor ainda passa pelo filtro de SSRF.
+   */
+  const preview = useMutation({
+    mutationFn: (url: string) => fetchLinkPreview(workspaceId, url),
+    onSuccess: (resultado) => {
+      onChange({
+        data: {
+          ...data,
+          url: resultado.url,
+          preview_title: resultado.title,
+          preview_description: resultado.description,
+          preview_image: resultado.image,
+          preview_site: resultado.site,
+        },
+      })
+      toast.success('Preview atualizado.')
+    },
+    onError: (erro) =>
+      toast.error(erro instanceof AiError ? erro.message : strings.errors.unexpected),
+  })
+
   const moveField = (index: number, direction: -1 | 1) => {
     const target = index + direction
     if (target < 0 || target >= fields.length) return
@@ -477,6 +507,76 @@ export function NodeInspector({ node, scriptContext, onChange }: NodeInspectorPr
                   />
                 )}
               </FormField>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {node.type === 'landing_page' && (
+          <AccordionItem value="destino_pagina">
+            <AccordionTrigger>Página de destino</AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-3">
+              <FormField label="Endereço">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.url ?? '')}
+                    onChange={(event) => set('url', event.target.value)}
+                    placeholder="https://sua-pagina.com.br"
+                  />
+                )}
+              </FormField>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs"
+                disabled={!String(data.url ?? '').trim() || preview.isPending}
+                onClick={() => preview.mutate(String(data.url ?? ''))}
+              >
+                {preview.isPending ? (
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                )}
+                Buscar preview
+              </Button>
+
+              {/* O que aparece no card é o que o próprio site publica para ser
+                  compartilhado. Editável porque nem todo site preenche bem. */}
+              <FormField label="Título do preview">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.preview_title ?? '')}
+                    onChange={(event) => set('preview_title', event.target.value)}
+                    placeholder="Preenchido ao buscar"
+                  />
+                )}
+              </FormField>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {node.type === 'whatsapp' && (
+          <AccordionItem value="destino_whatsapp">
+            <AccordionTrigger>Destino WhatsApp</AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-3">
+              <FormField label="Número" hint="Com DDI e DDD, como o Meta pede.">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={String(data.phone ?? '')}
+                    onChange={(event) => set('phone', event.target.value)}
+                    placeholder="+55 11 99999-9999"
+                  />
+                )}
+              </FormField>
+              <Area
+                label="Mensagem inicial"
+                value={data.message}
+                onChange={(v) => set('message', v)}
+                rows={3}
+              />
             </AccordionContent>
           </AccordionItem>
         )}

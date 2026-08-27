@@ -79,6 +79,26 @@ const nodeTypes = {
   forma: AuxiliaryNodeCard as React.ComponentType<NodeProps>,
 }
 
+/**
+ * Ferramenta da barra -> tipo de nó no banco.
+ *
+ * A tabela existe porque o mapeamento estava espalhado em ifs e um caso ficou
+ * de fora: "comment" seguia direto para o insert com esse nome, e 'comment'
+ * não é valor do enum campaign_node_type — o banco recusava a inserção. O tipo
+ * certo é 'observacao'. Ferramenta fora desta tabela não cria nada.
+ */
+const TOOL_NODE_TYPE: Record<string, string | undefined> = {
+  note: 'nota',
+  nota: 'nota',
+  text: 'texto',
+  texto: 'texto',
+  shape: 'forma',
+  forma: 'forma',
+  frame: 'frame',
+  comment: 'observacao',
+  observacao: 'observacao',
+}
+
 const LINK_PREFIX = 'link:'
 
 export function CampaignCanvas({
@@ -329,13 +349,10 @@ export function CampaignCanvas({
         }}
       onPaneClick={(e) => {
         onSelect(null)
-        if (['note', 'frame', 'text', 'shape', 'comment', 'forma', 'texto', 'nota'].includes(activeTool)) {
+        const tipoDaFerramenta = TOOL_NODE_TYPE[activeTool]
+        if (tipoDaFerramenta) {
           const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-          let type = activeTool
-          if (type === 'note') type = 'nota'
-          if (type === 'text') type = 'texto'
-          if (type === 'shape') type = 'forma'
-          onAddNode(type, position)
+          onAddNode(tipoDaFerramenta, position)
           setActiveTool('cursor')
         }
       }}

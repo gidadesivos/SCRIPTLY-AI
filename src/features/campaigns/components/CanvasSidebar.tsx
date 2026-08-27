@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   MousePointer2,
   Hand,
@@ -8,7 +8,6 @@ import {
   Frame,
   Type,
   Shapes,
-  MoreHorizontal,
   ChevronRight,
   ChevronLeft
 } from 'lucide-react'
@@ -24,13 +23,23 @@ export type ToolType =
   | 'cursor'
   | 'pan'
   | 'add_node'
-  | 'connector'
   | 'note'
   | 'frame'
   | 'text'
   | 'shape'
   | 'comment'
-  | 'more'
+
+/** Tecla -> ferramenta. É a mesma letra que aparece no rótulo do botão. */
+const SHORTCUTS: Record<string, ToolType> = {
+  v: 'cursor',
+  h: 'pan',
+  n: 'add_node',
+  s: 'note',
+  f: 'frame',
+  t: 'text',
+  r: 'shape',
+  o: 'comment',
+}
 
 interface CanvasSidebarProps {
   activeTool: ToolType
@@ -39,6 +48,38 @@ interface CanvasSidebarProps {
 
 export function CanvasSidebar({ activeTool, setActiveTool }: CanvasSidebarProps) {
   const [expanded, setExpanded] = useState(false)
+
+  /*
+   * Os atalhos anunciados nos tooltips agora existem.
+   *
+   * "Seleção (V)", "Post-it (S)", "Frame (F)" estavam escritos na tela desde
+   * sempre, mas nada escutava o teclado — o rótulo prometia um atalho que não
+   * era ligado a lugar nenhum.
+   *
+   * Modificador ligado é ignorado de propósito: Ctrl+V é colar, e trocar de
+   * ferramenta no meio de uma colagem seria surpresa pura.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      const alvo = document.activeElement
+      if (
+        alvo?.tagName === 'INPUT' ||
+        alvo?.tagName === 'TEXTAREA' ||
+        (alvo as HTMLElement | null)?.isContentEditable
+      ) {
+        return
+      }
+
+      const atalho = SHORTCUTS[event.key.toLowerCase()]
+      if (!atalho) return
+      event.preventDefault()
+      setActiveTool(atalho)
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setActiveTool])
 
   const handleDragStart = (e: React.DragEvent, nodeType: string) => {
     e.dataTransfer.setData('application/reactflow', nodeType)
@@ -60,10 +101,8 @@ export function CanvasSidebar({ activeTool, setActiveTool }: CanvasSidebarProps)
     { id: 'note', icon: StickyNote, label: 'Post-it (S)', shortcut: 's' },
     { id: 'frame', icon: Frame, label: 'Frame (F)', shortcut: 'f' },
     { id: 'text', icon: Type, label: 'Texto (T)', shortcut: 't' },
-    { id: 'shape', icon: Shapes, label: 'Formas', shortcut: '' },
-    { id: 'comment', icon: MessageSquare, label: 'Comentário', shortcut: '' },
-    { type: 'separator' },
-    { id: 'more', icon: MoreHorizontal, label: 'Mais ferramentas', shortcut: '' },
+    { id: 'shape', icon: Shapes, label: 'Forma (R)', shortcut: 'r' },
+    { id: 'comment', icon: MessageSquare, label: 'Observação (O)', shortcut: 'o' },
   ]
 
   return (
@@ -122,7 +161,12 @@ export function CanvasSidebar({ activeTool, setActiveTool }: CanvasSidebarProps)
 
           const buttonContent = (
             <button
-              onClick={() => setActiveTool(tool.id as ToolType)}
+              onClick={() => {
+                // Fechada, a lista de tipos não cabe: clicar em "Adicionar Nó"
+                // abre o painel em vez de marcar uma ferramenta sem efeito.
+                if (tool.id === 'add_node' && !expanded) setExpanded(true)
+                setActiveTool(tool.id as ToolType)
+              }}
               className={cn(
                 'flex h-10 w-full items-center gap-3 rounded-lg px-2 text-[#8C8CA0] transition-colors hover:bg-[#1E1E28] hover:text-[#EDEDF2]',
                 isSelected && 'bg-[#1E1E28] text-[#EDEDF2]',

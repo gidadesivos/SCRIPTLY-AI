@@ -168,6 +168,28 @@ export const formFieldSchema = z.object({
 
 export type FormField = z.infer<typeof formFieldSchema>
 
+/**
+ * Destinos tinham schema nenhum: caíam no `return input as Record<string, any>`
+ * do parseNodeData, e a URL ou o telefone eram guardados no `label` do nó — o
+ * mesmo campo do nome que aparece no card. Campo próprio separa as duas coisas.
+ */
+export const landingPageDataSchema = baseDataSchema.extend({
+  url: text,
+  /** Cartão Open Graph resolvido pela Edge Function. Vazio até alguém buscar. */
+  preview_title: text,
+  preview_description: text,
+  preview_image: text,
+  preview_site: text,
+})
+
+export const whatsappDataSchema = baseDataSchema.extend({
+  phone: text,
+  message: text,
+})
+
+export type LandingPageData = z.infer<typeof landingPageDataSchema>
+export type WhatsappData = z.infer<typeof whatsappDataSchema>
+
 export const formularioDataSchema = baseDataSchema.extend({
   title: text,
   /** Texto do botão de envio. Vazio cai no padrão na hora de renderizar. */
@@ -179,7 +201,14 @@ export type CampanhaData = z.infer<typeof campanhaDataSchema>
 export type ConjuntoData = z.infer<typeof conjuntoDataSchema>
 export type AnuncioData = z.infer<typeof anuncioDataSchema>
 export type FormularioData = z.infer<typeof formularioDataSchema>
-export type CampaignNodeData = CampanhaData | ConjuntoData | AnuncioData | FormularioData | Record<string, any>
+export type CampaignNodeData =
+  | CampanhaData
+  | ConjuntoData
+  | AnuncioData
+  | FormularioData
+  | LandingPageData
+  | WhatsappData
+  | Record<string, any>
 
 export function parseNodeData(type: CampaignNodeType, raw: unknown): CampaignNodeData {
   const input = raw && typeof raw === 'object' ? raw : {}
@@ -187,6 +216,8 @@ export function parseNodeData(type: CampaignNodeType, raw: unknown): CampaignNod
   if (type === 'conjunto') return conjuntoDataSchema.parse(input)
   if (type === 'anuncio') return anuncioDataSchema.parse(input)
   if (type === 'formulario') return formularioDataSchema.parse(input)
+  if (type === 'landing_page') return landingPageDataSchema.parse(input)
+  if (type === 'whatsapp') return whatsappDataSchema.parse(input)
   return input as Record<string, any>
 }
 
