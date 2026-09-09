@@ -39,10 +39,24 @@ export function AppRail({ onNavigate }: { onNavigate?: () => void }) {
               {isActive && (
                 <span className="absolute -left-1.5 top-3 h-5 w-[2px] rounded-sm bg-[#6D4AFF]" />
               )}
-              <item.icon className="h-[17px] w-[17px]" />
+              <span className="relative">
+                <item.icon className="h-[17px] w-[17px]" />
+                {/* Ponto, e não a palavra "BETA": no rail de 60px o texto não
+                    cabe sem quebrar o alinhamento dos outros itens. O nome por
+                    extenso aparece no drawer, onde há espaço. */}
+                {item.badge && (
+                  <span
+                    className="absolute -right-1 -top-0.5 h-[5px] w-[5px] rounded-full bg-[#6D4AFF] ring-2 ring-[#0A0A0E]"
+                    aria-hidden
+                  />
+                )}
+              </span>
               <span className="font-mono text-[9px] font-medium leading-none tracking-[0.04em]">
                 {item.label}
               </span>
+              {/* Só para leitor de tela: visualmente o ponto já sinaliza, mas
+                  "rápido" sozinho não diz que o recurso é experimental. */}
+              {item.badge && <span className="sr-only">{item.fullLabel ?? item.badge}</span>}
             </>
           )}
         </NavLink>

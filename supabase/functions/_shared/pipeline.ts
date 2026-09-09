@@ -1,7 +1,7 @@
 import { z } from 'npm:zod@3.23.8'
 import type { GeminiSchema } from './gemini.ts'
 import { callWithFallback, callExplicit, type ChainAttempt, type ChainResult } from './providers/index.ts'
-import type { ProviderName } from './providers/types.ts'
+import type { MediaPart, ProviderName } from './providers/types.ts'
 import { CONTENT_SYSTEM_V1 } from './prompts.ts'
 import {
   MAX_REPAIR_ATTEMPTS,
@@ -58,6 +58,14 @@ export interface RunOptions<T> {
    * É o modo "seleção manual" do usuário.
    */
   explicitModel?: { provider: ProviderName; modelId: string }
+  /**
+   * Mídia já hospedada na Files API do Gemini.
+   *
+   * Atravessa o pipeline sem ser interpretada: quem sabe o que fazer com ela é
+   * o provedor. O reparo de JSON reenvia o prompt, e a mídia precisa ir junto —
+   * senão a segunda tentativa responderia sobre um vídeo que sumiu.
+   */
+  mediaParts?: MediaPart[]
 }
 
 export interface RunOutcome<T> {
@@ -86,6 +94,7 @@ export async function runOperation<T>({
   groqModels,
   geminiModels,
   explicitModel,
+  mediaParts,
 }: RunOptions<T>): Promise<RunOutcome<T>> {
   let prompt = userPrompt
   let lastResult: ChainResult | null = null
@@ -102,6 +111,7 @@ export async function runOperation<T>({
       openRouterModels,
       groqModels,
       geminiModels,
+      mediaParts,
     }
 
     lastResult = explicitModel

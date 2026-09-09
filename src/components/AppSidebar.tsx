@@ -40,7 +40,12 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
             }
           >
             <item.icon className="h-4 w-4" />
-            {item.label}
+            <span className="flex-1">{item.fullLabel ?? item.label}</span>
+            {item.badge && (
+              <span className="rounded-full border border-[#3A2E63] bg-[#241E3D] px-1.5 py-0.5 font-mono text-[9px] font-semibold leading-none tracking-wider text-[#B9A6FF]">
+                {item.badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

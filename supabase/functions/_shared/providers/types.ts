@@ -24,6 +24,20 @@ export interface CallOptions {
    * com esbuild, que apaga tipo sem conferir.
    */
   geminiModels?: string[]
+  /**
+   * Mídia enviada junto do texto, já hospedada na Files API do Gemini.
+   *
+   * Fica opcional e fora do userPrompt porque só o Gemini entende: OpenRouter e
+   * Groq recusam explicitamente quando isto vem preenchido, em vez de ignorar
+   * em silêncio e responder sobre um vídeo que nunca viram.
+   */
+  mediaParts?: MediaPart[]
+}
+
+/** Um arquivo já processado pela Files API, pronto para virar um part. */
+export interface MediaPart {
+  fileUri: string
+  mimeType: string
 }
 
 export interface ProviderResult {

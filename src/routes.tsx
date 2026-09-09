@@ -19,6 +19,14 @@ const DashboardPage = lazy(() =>
 const CreatePage = lazy(() =>
   import('@/features/create/CreatePage').then((m) => ({ default: m.CreatePage })),
 )
+/**
+ * Criação (Beta) é rota própria e lazy, como as demais. Separada de /create de
+ * propósito: são dois produtos na mesma casa, e retirar um não pode mexer no
+ * outro. Lazy também garante que quem nunca abrir a Beta não baixa nada dela.
+ */
+const QuickCreatePage = lazy(() =>
+  import('@/features/quick-create/QuickCreatePage').then((m) => ({ default: m.QuickCreatePage })),
+)
 const ScriptsListPage = lazy(() =>
   import('@/features/scripts/ScriptsListPage').then((m) => ({ default: m.ScriptsListPage })),
 )
@@ -71,6 +79,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/create', element: <CreatePage /> },
+          { path: '/create-beta', element: <QuickCreatePage /> },
           { path: '/scripts', element: <ScriptsListPage /> },
           { path: '/scripts/:scriptId', element: <ScriptEditorPage /> },
           { path: '/brands', element: <BrandsListPage /> },

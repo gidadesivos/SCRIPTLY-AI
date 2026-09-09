@@ -81,6 +81,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   forbidden: strings.errors.forbidden,
   invalid_request: strings.errors.unexpected,
   rate_limited: strings.aiErrors.rateLimited,
+  reference_failed: strings.aiErrors.referenceFailed,
   ai_unavailable: strings.aiErrors.unavailable,
   invalid_ai_output: strings.aiErrors.invalidOutput,
   unexpected: strings.errors.unexpected,
@@ -317,4 +318,122 @@ export interface LinkPreview {
  */
 export function fetchLinkPreview(workspaceId: string, url: string): Promise<LinkPreview> {
   return invoke<LinkPreview>({ workspaceId, url }, 'link-preview')
+}
+
+// =========================================================================
+// Criação (Beta)
+//
+// Vive aqui, e não num cliente próprio, porque `invoke` já resolve sessão
+// expirada, offline, função não publicada e a taxonomia de erro inteira.
+// Um cliente paralelo teria de reimplementar tudo isso — e erraria em algum.
+// =========================================================================
+
+/** O que a IA decidiu sozinha. É a conclusão, nunca o raciocínio. */
+export interface QuickStrategy {
+  objective: string
+  audience: string
+  angle: string
+  promise: string
+}
+
+export interface QuickScript {
+  title: string
+  framework: string
+  hook: string
+  cta: string
+  strategy_summary: string
+  objective: string
+  audience: string
+  angle: string
+  promise: string
+  /** O que foi aproveitado da referência. Vazio quando não houve. */
+  reference_summary: string
+  scenes: GeneratedScene[]
+}
+
+/** O que a análise do vídeo entendeu, em palavras. */
+export interface ReferenceInsights {
+  summary: string
+  topics: string[]
+  hook_style: string
+  structure: string[]
+  tone: string
+  cta: string
+  arguments_used: string[]
+}
+
+export interface QuickScriptInput {
+  request: string
+  contentType: string
+  platform: string
+  durationSeconds: number
+  tone: string
+  audience: string
+  cta: string
+  funnelStage: string
+  extraInstructions: string
+  withoutCta: boolean
+  voiceoverOnly: boolean
+  transcript: string
+  insights: ReferenceInsights | null
+}
+
+export function generateQuickScript(
+  ref: ContextRef,
+  input: QuickScriptInput,
+  model?: ModelRef,
+) {
+  return invoke<QuickScript>({ operation: 'quickScript', ...ref, ...input, model })
+}
+
+/**
+ * Analisa o vídeo já enviado ao Storage.
+ *
+ * Recebe o CAMINHO, não o arquivo: o vídeo já subiu direto do navegador para o
+ * bucket, e mandá-lo de novo dentro de um JSON seria transferir tudo duas vezes.
+ *
+ * Sem `model`: quem analisa vídeo é sempre o Gemini, e a Edge Function decide
+ * isso. Aceitar um modelo aqui daria a impressão de escolha onde não há.
+ */
+export function analyzeVideoReference(workspaceId: string, storagePath: string, request: string) {
+  return invoke<ReferenceInsights>({
+    operation: 'analyzeReference',
+    workspaceId,
+    storagePath,
+    request,
+  })
+}
+
+/** Aplica uma instrução ao roteiro e devolve a peça inteira, coerente. */
+export function refineQuickScript(
+  ref: ContextRef,
+  script: QuickScript,
+  instruction: string,
+  context: { platform: string; durationSeconds: number },
+  model?: ModelRef,
+) {
+  return invoke<QuickScript>({
+    operation: 'refineQuickScript',
+    ...ref,
+    script: script as unknown as Record<string, unknown>,
+    instruction,
+    ...context,
+    model,
+  })
+}
+
+/** Aberturas alternativas, sem regerar o roteiro inteiro. */
+export function quickHookOptions(
+  ref: ContextRef,
+  script: { title: string; hook: string; angle: string; voiceovers: string[] },
+  count: number,
+  model?: ModelRef,
+) {
+  return invoke<{ hooks: string[] }>({
+    operation: 'quickHookOptions',
+    ...ref,
+    script,
+    count,
+    model,
+  })
 }

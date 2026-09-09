@@ -72,6 +72,21 @@ export const openRouterProvider: Provider = {
   },
 
   async call(options: CallOptions): Promise<ProviderResult> {
+    /*
+     * Recusa explícita, e não silêncio: este provedor não recebe o vídeo, e
+     * responder mesmo assim produziria um roteiro que finge ter analisado uma
+     * referência que o modelo nunca viu. 'config' porque trocar de porta não
+     * resolve — quem precisa entrar aqui é o Gemini.
+     */
+    if (options.mediaParts?.length) {
+      throw new ProviderError(
+        'openrouter',
+        'config',
+        'Este provedor não recebe vídeo. A análise da referência é feita pelo Gemini.',
+        null,
+      )
+    }
+
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 

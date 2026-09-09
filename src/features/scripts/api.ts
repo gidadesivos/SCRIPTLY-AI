@@ -56,6 +56,15 @@ export interface SaveScriptInput {
   cta: string
   strategySummary: string
   scenes: GeneratedScene[]
+  /**
+   * De onde veio o roteiro. Ausente = fluxo guiado, que é o default da coluna.
+   *
+   * Opcional de propósito: as ~15 chamadas existentes de saveScript não
+   * precisam mudar uma linha para continuarem corretas.
+   */
+  creationMode?: 'guided' | 'quick_beta'
+  /** Tipo da referência usada, quando houve. Nunca a URL do arquivo. */
+  referenceType?: 'video' | 'transcript' | null
 }
 
 function emptyToNull(value: string | null | undefined) {
@@ -98,6 +107,8 @@ export async function saveScript(input: SaveScriptInput): Promise<string> {
       framework: emptyToNull(input.framework),
       cta: emptyToNull(input.cta),
       strategy_summary: emptyToNull(input.strategySummary),
+      creation_mode: input.creationMode ?? 'guided',
+      reference_type: input.referenceType ?? null,
       status: 'roteiro',
     })
     .select('id')

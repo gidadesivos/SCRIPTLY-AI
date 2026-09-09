@@ -1,4 +1,5 @@
 import { z } from 'npm:zod@3.23.8'
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { AI_MODEL } from '../_shared/ai-config.ts'
 import { authenticate, AuthError, ConfigError } from '../_shared/auth.ts'
 import { buildContext } from '../_shared/context.ts'
@@ -13,6 +14,35 @@ import {
 import type { ProviderName } from '../_shared/providers/types.ts'
 import { corsHeaders, errorResponse, jsonResponse } from '../_shared/http.ts'
 import { InvalidAiOutputError, runOperation } from '../_shared/pipeline.ts'
+import {
+  GeminiFileError,
+  deleteGeminiFile,
+  uploadVideoToGemini,
+} from '../_shared/gemini-files.ts'
+import {
+  GEMINI_VIDEO_MODEL,
+  MAX_REFERENCE_VIDEO_BYTES,
+  REFERENCE_BUCKET,
+} from '../_shared/ai-config.ts'
+import {
+  QUICK_PROMPT_VERSIONS,
+  QUICK_SYSTEM_V1,
+  REFERENCE_SYSTEM_V1,
+  analyzeReferencePrompt,
+  quickHookOptionsPrompt,
+  quickScriptPrompt,
+  refineQuickScriptPrompt,
+} from '../_shared/quick-prompts.ts'
+import {
+  hookOptionsGeminiSchema,
+  hookOptionsZodSchema,
+  quickScriptGeminiSchema,
+  quickScriptZodSchema,
+  referenceInsightsGeminiSchema,
+  referenceInsightsZodSchema,
+  refineQuickScriptGeminiSchema,
+  refineQuickScriptZodSchema,
+} from '../_shared/quick-schemas.ts'
 import { checkRateLimit, recordGeneration } from '../_shared/rate-limit.ts'
 import {
   PROMPT_VERSIONS,
@@ -64,6 +94,77 @@ function inBackground(promise: Promise<unknown>) {
   // Sem waitUntil (execução local, runtime antigo): não deixar a promessa
   // rejeitar sozinha e derrubar o processo.
   promise.catch((error) => console.error('Falha em tarefa de fundo:', error))
+}
+
+/**
+ * Baixa a referência do Storage, entrega ao Gemini e devolve o que ele entendeu.
+ *
+ * A checagem do caminho NÃO é redundante com a RLS do bucket. A RLS protege o
+ * navegador; aqui o cliente admin (service role) IGNORA RLS por definição. Sem
+ * esta trava, mandar `storagePath` de outro workspace faria a própria function
+ * buscar e revelar o arquivo alheio — o clássico IDOR.
+ */
+async function analisarReferencia(
+  admin: SupabaseClient,
+  workspaceId: string,
+  storagePath: string,
+  pedidoDoUsuario: string,
+) {
+  const prefixoEsperado = `${workspaceId}/references/`
+  // startsWith sozinho aceitaria "../" no meio; o Storage trata a chave como
+  // texto, então travessia precisa ser recusada explicitamente.
+  if (!storagePath.startsWith(prefixoEsperado) || storagePath.includes('..')) {
+    throw new AuthError('Este arquivo não pertence ao workspace.', 'forbidden')
+  }
+
+  const apiKey = Deno.env.get('GEMINI_API_KEY')
+  if (!apiKey) {
+    throw new ConfigError('A análise de vídeo exige GEMINI_API_KEY na function.')
+  }
+
+  const { data: arquivo, error } = await admin.storage
+    .from(REFERENCE_BUCKET)
+    .download(storagePath)
+
+  if (error || !arquivo) {
+    throw new GeminiFileError('Não foi possível ler o vídeo enviado.', false)
+  }
+  if (arquivo.size === 0) {
+    throw new GeminiFileError('O vídeo enviado está vazio.', false)
+  }
+  // Teto conferido de novo no servidor: o bucket já limita, mas o custo de
+  // descobrir isso DEPOIS de subir para o Google é alto demais.
+  if (arquivo.size > MAX_REFERENCE_VIDEO_BYTES) {
+    throw new GeminiFileError('O vídeo passou do tamanho máximo permitido.', false)
+  }
+
+  const referencia = await uploadVideoToGemini(
+    apiKey,
+    await arquivo.arrayBuffer(),
+    arquivo.type || 'video/mp4',
+  )
+
+  try {
+    return await runOperation({
+      operation: 'analyzeReference',
+      systemPrompt: REFERENCE_SYSTEM_V1,
+      userPrompt: analyzeReferencePrompt(pedidoDoUsuario),
+      geminiSchema: referenceInsightsGeminiSchema,
+      zodSchema: referenceInsightsZodSchema,
+      /*
+       * Modelo fixo e SEM cascata, de propósito: só o Gemini recebe vídeo, e
+       * cair para OpenRouter aqui produziria uma "análise" de um vídeo que
+       * aquele modelo nunca viu — pior que falhar.
+       */
+      explicitModel: { provider: 'gemini', modelId: GEMINI_VIDEO_MODEL },
+      mediaParts: [{ fileUri: referencia.uri, mimeType: referencia.mimeType }],
+    })
+  } finally {
+    // Faxina depois de responder: a cópia no Google não precisa sobreviver à
+    // análise, e segurar o usuário para apagar arquivo seria trocar tempo dele
+    // por limpeza nossa.
+    inBackground(deleteGeminiFile(apiKey, referencia.name))
+  }
 }
 
 const angleSchema = z.object({ type: z.string(), description: z.string() })
@@ -179,6 +280,89 @@ const requestSchema = z.discriminatedUnion('operation', [
     scriptContext: z.string().max(4000).default(''),
     model: modelSchema,
   }),
+
+  // ------------------------------------------------------ Criação (Beta)
+  /**
+   * UMA geração: interpreta o pedido, decide estratégia e escreve o roteiro.
+   *
+   * O fluxo guiado gasta quatro idas ao servidor para chegar aqui. Repetir
+   * aquela sequência por dentro destruiria a única coisa que a Beta promete,
+   * que é velocidade.
+   */
+  z.object({
+    operation: z.literal('quickScript'),
+    workspaceId: z.string().uuid(),
+    brandId: z.string().uuid(),
+    productId: z.string().uuid().nullish(),
+    request: z.string().min(3).max(4000),
+    contentType: z.string().max(40).default('automatico'),
+    platform: z.string().max(40).default('instagram_reels'),
+    durationSeconds: z.number().int().min(5).max(180).default(30),
+    tone: z.string().max(40).default('automatico'),
+    audience: z.string().max(300).default(''),
+    cta: z.string().max(300).default(''),
+    funnelStage: z.string().max(40).default(''),
+    extraInstructions: z.string().max(1000).default(''),
+    withoutCta: z.boolean().default(false),
+    voiceoverOnly: z.boolean().default(false),
+    /** Transcrição colada ou lida de .txt/.srt/.vtt, já normalizada no cliente. */
+    transcript: z.string().max(40_000).default(''),
+    /** Resultado de analyzeReference, quando houve vídeo. */
+    insights: z
+      .object({
+        summary: z.string(),
+        topics: z.array(z.string()).default([]),
+        hook_style: z.string().default(''),
+        structure: z.array(z.string()).default([]),
+        tone: z.string().default(''),
+        cta: z.string().default(''),
+        arguments_used: z.array(z.string()).default([]),
+      })
+      .nullish(),
+    model: modelSchema,
+  }),
+
+  /**
+   * Análise do vídeo. Operação separada por uma razão técnica, não estética:
+   * baixar do Storage, subir para o Google, esperar o processamento e ainda
+   * gerar o roteiro não cabe numa invocação só.
+   *
+   * Recebe o CAMINHO no Storage, nunca o arquivo: bytes de vídeo dentro de um
+   * JSON estouram memória, payload e custo.
+   */
+  z.object({
+    operation: z.literal('analyzeReference'),
+    workspaceId: z.string().uuid(),
+    storagePath: z.string().min(1).max(500),
+    request: z.string().max(4000).default(''),
+  }),
+
+  z.object({
+    operation: z.literal('refineQuickScript'),
+    workspaceId: z.string().uuid(),
+    brandId: z.string().uuid(),
+    productId: z.string().uuid().nullish(),
+    script: z.record(z.unknown()),
+    instruction: z.string().min(1).max(1000),
+    platform: z.string().max(40).default('instagram_reels'),
+    durationSeconds: z.number().int().min(5).max(180).default(30),
+    model: modelSchema,
+  }),
+
+  z.object({
+    operation: z.literal('quickHookOptions'),
+    workspaceId: z.string().uuid(),
+    brandId: z.string().uuid(),
+    productId: z.string().uuid().nullish(),
+    script: z.object({
+      title: z.string().default(''),
+      hook: z.string().default(''),
+      angle: z.string().default(''),
+      voiceovers: z.array(z.string()).default([]),
+    }),
+    count: z.number().int().min(1).max(5).default(3),
+    model: modelSchema,
+  }),
 ])
 
 Deno.serve(async (req) => {
@@ -291,7 +475,12 @@ Deno.serve(async (req) => {
     ? { provider: body.model.provider as ProviderName, modelId: body.model.modelId }
     : undefined
 
-  const promptVersion = PROMPT_VERSIONS[body.operation]
+  /*
+   * As versões da Beta ficam num mapa próprio (quick-prompts.ts) porque seus
+   * prompts evoluem sozinhos. Unir aqui, e não lá, mantém prompts.ts intocado —
+   * é o que faz remover a Beta ser apagar arquivos, não desfiar o fluxo antigo.
+   */
+  const promptVersion = { ...PROMPT_VERSIONS, ...QUICK_PROMPT_VERSIONS }[body.operation]
 
   let verdict
   try {
@@ -339,8 +528,13 @@ Deno.serve(async (req) => {
 
   try {
     // parseFreeformIdea é o único que não precisa de marca: ainda não há contexto.
+    /*
+     * analyzeReference entra aqui junto do parseFreeformIdea: descrever COMO um
+     * vídeo de terceiro funciona não depende do Brand Brain, e mandar a marca
+     * junto só contaminaria a leitura com o que queremos escrever depois.
+     */
     const blocks =
-      body.operation === 'parseFreeformIdea'
+      body.operation === 'parseFreeformIdea' || body.operation === 'analyzeReference'
         ? { brandBlock: '', productBlock: '', avoidBlock: '' }
         : await buildContext(admin, workspaceId, body.brandId, body.productId ?? null)
 
@@ -448,6 +642,71 @@ Deno.serve(async (req) => {
             geminiModels,
             explicitModel,
           })
+
+        // -------------------------------------------------- Criação (Beta)
+        case 'quickScript':
+          return runOperation({
+            operation: 'quickScript',
+            systemPrompt: QUICK_SYSTEM_V1,
+            userPrompt: quickScriptPrompt(
+              {
+                request: body.request,
+                contentType: body.contentType,
+                platform: body.platform,
+                durationSeconds: body.durationSeconds,
+                tone: body.tone,
+                audience: body.audience,
+                cta: body.cta,
+                funnelStage: body.funnelStage,
+                extraInstructions: body.extraInstructions,
+                withoutCta: body.withoutCta,
+                voiceoverOnly: body.voiceoverOnly,
+                transcript: body.transcript,
+                insights: body.insights ?? null,
+              },
+              blocks,
+            ),
+            geminiSchema: quickScriptGeminiSchema,
+            zodSchema: quickScriptZodSchema,
+            openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
+          })
+
+        case 'analyzeReference':
+          return analisarReferencia(admin, workspaceId, body.storagePath, body.request)
+
+        case 'refineQuickScript':
+          return runOperation({
+            operation: 'refineQuickScript',
+            systemPrompt: QUICK_SYSTEM_V1,
+            userPrompt: refineQuickScriptPrompt(
+              body.script,
+              body.instruction,
+              { durationSeconds: body.durationSeconds, platform: body.platform },
+              blocks,
+            ),
+            geminiSchema: refineQuickScriptGeminiSchema,
+            zodSchema: refineQuickScriptZodSchema,
+            openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
+          })
+
+        case 'quickHookOptions':
+          return runOperation({
+            operation: 'quickHookOptions',
+            systemPrompt: QUICK_SYSTEM_V1,
+            userPrompt: quickHookOptionsPrompt(body.script, body.count, blocks),
+            geminiSchema: hookOptionsGeminiSchema,
+            zodSchema: hookOptionsZodSchema,
+            openRouterModels,
+            groqModels,
+            geminiModels,
+            explicitModel,
+          })
       }
     })()
 
@@ -504,6 +763,25 @@ Deno.serve(async (req) => {
     // Sem este log, uma falha do Gemini só aparecia em ai_generations. O erro
     // que derrubou o primeiro deploy ("modelo descontinuado") ficou invisível
     // nos logs por causa disso.
+    /*
+     * Falhas próprias da referência ganham resposta própria.
+     *
+     * Cair no 'unexpected' genérico faria "seu vídeo tem 300 MB" e "o Gemini
+     * está fora do ar" chegarem ao usuário com a mesma frase inútil — e a
+     * primeira ele resolve sozinho em dez segundos, se souber.
+     */
+    if (error instanceof AuthError) {
+      return errorResponse(error.code, error.code === 'unauthorized' ? 401 : 403, error.message)
+    }
+    if (error instanceof ConfigError) {
+      console.error('[ai-generate] configuração ausente:', error.message)
+      return errorResponse('ai_unavailable', 503, error.message)
+    }
+    if (error instanceof GeminiFileError) {
+      console.error('[ai-generate] referência de vídeo:', error.message)
+      return errorResponse('reference_failed', error.retryable ? 503 : 422, error.message)
+    }
+
     if (isInvalidOutput) {
       console.error('[ai-generate] saída inválida:', (error as Error).message)
       return errorResponse('invalid_ai_output', 502)

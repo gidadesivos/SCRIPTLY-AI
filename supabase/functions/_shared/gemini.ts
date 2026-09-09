@@ -63,6 +63,22 @@ interface CallOptions {
   maxOutputTokens: number
   /** Omitido = o modelo decide quanto pensar. Ver THINKING_LEVEL. */
   thinkingLevel?: 'low'
+  /** Mídia já hospedada na Files API. Ver montarPartes. */
+  mediaParts?: Array<{ fileUri: string; mimeType: string }>
+}
+
+/**
+ * Um part por mídia, e o texto POR ÚLTIMO.
+ *
+ * A ordem não é estética: o modelo lê os parts em sequência, e a instrução
+ * precisa vir depois do material a que ela se refere — do contrário ela fala
+ * de algo que o modelo ainda não viu.
+ */
+function montarPartes(options: CallOptions) {
+  const midia = (options.mediaParts ?? []).map((part) => ({
+    fileData: { mimeType: part.mimeType, fileUri: part.fileUri },
+  }))
+  return [...midia, { text: options.userPrompt }]
 }
 
 async function callOnce(apiKey: string, modelId: string, options: CallOptions): Promise<GeminiResult> {
@@ -81,7 +97,7 @@ async function callOnce(apiKey: string, modelId: string, options: CallOptions): 
         signal: controller.signal,
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: options.systemInstruction }] },
-          contents: [{ role: 'user', parts: [{ text: options.userPrompt }] }],
+          contents: [{ role: 'user', parts: montarPartes(options) }],
           generationConfig: {
             temperature: options.temperature,
             maxOutputTokens: options.maxOutputTokens,

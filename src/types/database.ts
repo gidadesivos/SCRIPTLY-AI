@@ -787,12 +787,14 @@ export type Database = {
           brand_id: string
           created_at: string
           created_by: string
+          creation_mode: string
           cta: string | null
           description: string | null
           desire: string | null
           duration_seconds: number
           framework: string | null
           folder_id: string | null
+          reference_type: string | null
           funnel_stage: Database["public"]["Enums"]["funnel_stage"] | null
           hook_category: string | null
           hook_score: number | null
@@ -820,12 +822,14 @@ export type Database = {
           brand_id: string
           created_at?: string
           created_by: string
+          creation_mode?: string
           cta?: string | null
           description?: string | null
           desire?: string | null
           duration_seconds?: number
           framework?: string | null
           folder_id?: string | null
+          reference_type?: string | null
           funnel_stage?: Database["public"]["Enums"]["funnel_stage"] | null
           hook_category?: string | null
           hook_score?: number | null
@@ -853,12 +857,14 @@ export type Database = {
           brand_id?: string
           created_at?: string
           created_by?: string
+          creation_mode?: string
           cta?: string | null
           description?: string | null
           desire?: string | null
           duration_seconds?: number
           framework?: string | null
           folder_id?: string | null
+          reference_type?: string | null
           funnel_stage?: Database["public"]["Enums"]["funnel_stage"] | null
           hook_category?: string | null
           hook_score?: number | null

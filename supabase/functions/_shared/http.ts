@@ -22,6 +22,13 @@ export type ErrorCode =
   | 'rate_limited'
   | 'ai_unavailable'
   | 'invalid_ai_output'
+  /*
+   * A referência (vídeo) falhou — e a causa quase sempre é acionável pelo
+   * usuário: arquivo grande demais, formato recusado, vídeo que o Gemini não
+   * conseguiu processar. Misturar isso com 'unexpected' esconderia justamente
+   * a parte que ele consegue resolver sozinho.
+   */
+  | 'reference_failed'
   | 'unexpected'
 
 export function errorResponse(code: ErrorCode, status: number, detail?: string) {

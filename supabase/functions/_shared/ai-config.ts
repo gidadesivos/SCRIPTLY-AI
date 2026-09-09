@@ -10,6 +10,22 @@
  */
 export const AI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash'
 
+/**
+ * Modelo usado APENAS para analisar vídeo.
+ *
+ * Fica separado do AI_MODEL porque a análise multimodal e a escrita do roteiro
+ * são trabalhos diferentes: o usuário pode escolher Groq ou OpenRouter para
+ * escrever, e nenhum dos dois recebe vídeo. Em vez de trocar a escolha dele por
+ * baixo do pano, a análise usa este modelo e a escrita usa o dele.
+ */
+export const GEMINI_VIDEO_MODEL = Deno.env.get('GEMINI_VIDEO_MODEL') ?? AI_MODEL
+
+/** Teto do arquivo de referência. Precisa bater com o do bucket (migration 0017). */
+export const MAX_REFERENCE_VIDEO_BYTES = 52_428_800
+
+/** Bucket privado das referências de vídeo (migration 0017). */
+export const REFERENCE_BUCKET = 'reference-uploads'
+
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
 /**
@@ -68,6 +84,10 @@ export type OperationName =
   | 'rewriteSection'
   | 'generateVariations'
   | 'generateAdCopy'
+  | 'quickScript'
+  | 'refineQuickScript'
+  | 'analyzeReference'
+  | 'quickHookOptions'
 
 /**
  * Temperatura por operação: extração precisa ser literal, criação precisa variar.
@@ -85,6 +105,19 @@ export const TEMPERATURE: Record<OperationName, number> = {
   // é alta o suficiente para não sair genérico e baixa o suficiente para o
   // modelo continuar preso ao que o Brand Brain forneceu.
   generateAdCopy: 0.8,
+  /*
+   * A Criação (Beta) decide ângulo e hook sozinha, o que pede a criatividade
+   * das operações de ângulo (0.9) — mas ela também escreve o roteiro inteiro
+   * na mesma passada, e temperatura alta demais no corpo do texto produz cena
+   * solta e locução que foge do briefing. 0.8 é o meio-termo entre as duas
+   * pressões, e é o número a ajustar se os roteiros saírem genéricos.
+   */
+  quickScript: 0.8,
+  // Refinar tem instrução explícita: o trabalho é obedecer, não reinventar.
+  refineQuickScript: 0.5,
+  // Descrever um vídeo é leitura, não criação. Variar aqui seria inventar.
+  analyzeReference: 0.2,
+  quickHookOptions: 1.0,
 }
 
 export const MAX_OUTPUT_TOKENS: Record<OperationName, number> = {
@@ -96,6 +129,12 @@ export const MAX_OUTPUT_TOKENS: Record<OperationName, number> = {
   rewriteSection: 1024,
   generateVariations: 8192,
   generateAdCopy: 2048,
+  // Roteiro completo MAIS o bloco de estratégia: cabe mais coisa que no
+  // generateScript, que recebia briefing e ângulo já prontos.
+  quickScript: 8192,
+  refineQuickScript: 8192,
+  analyzeReference: 2048,
+  quickHookOptions: 1024,
 }
 
 /** Anti-repetição (§7.4): quantos títulos/textos recentes enviar como "evite". */
@@ -126,4 +165,13 @@ export const THINKING_LEVEL: Record<OperationName, 'low' | undefined> = {
   rewriteSection: 'low',
   generateVariations: undefined,
   generateAdCopy: undefined,
+  /*
+   * quickScript fica no padrão do modelo (pensar bastante): é a operação que
+   * concentra TODAS as decisões que o fluxo guiado espalhava em quatro etapas.
+   * Economizar raciocínio justo aqui seria economizar no que a feature vende.
+   */
+  quickScript: undefined,
+  refineQuickScript: 'low',
+  analyzeReference: 'low',
+  quickHookOptions: undefined,
 }
