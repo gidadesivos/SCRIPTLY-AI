@@ -16,6 +16,10 @@ on:
         description: 'Publicar as Edge Functions (ai-generate e link-preview)'
         type: boolean
         default: true
+      diagnosticar:
+        description: 'Só diagnosticar: mostrar a que contas e projetos o token dá acesso'
+        type: boolean
+        default: false
       migrations:
         description: 'O que fazer com as migrations pendentes'
         type: choice
@@ -37,6 +41,22 @@ jobs:
       - uses: supabase/setup-cli@v3
         with:
           version: latest
+
+      # Um 403 "sem privilégio" tem duas causas muito diferentes: o token é de
+      # OUTRA conta (o projeto não aparece na lista) ou a conta está na
+      # organização com papel insuficiente (o projeto aparece, mas escrever é
+      # negado). Listar separa as duas em vez de chutar.
+      - name: Diagnosticar acesso do token
+        if: ${{ inputs.diagnosticar }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "::group::Organizações que o token enxerga"
+          supabase orgs list || echo "FALHOU ao listar organizações"
+          echo "::endgroup::"
+          echo "::group::Projetos que o token enxerga"
+          supabase projects list || echo "FALHOU ao listar projetos"
+          echo "::endgroup::"
 
       # As functions não precisam da senha do banco: só do token da conta.
       - name: Publicar Edge Functions
