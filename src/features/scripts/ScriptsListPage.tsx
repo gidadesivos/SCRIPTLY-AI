@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, FileText, Plus, Search, ChevronDown, MoreVertical } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText, Plus, Search, ChevronDown } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,10 +11,125 @@ import { listScripts, SCRIPTS_PAGE_SIZE } from '@/features/scripts/api'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { dbErrorMessage } from '@/lib/db-errors'
 import { strings } from '@/i18n/pt-BR'
+import { useMemo } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { SCRIPT_STATUSES, labelFor } from '@/config/options'
+import { canDeleteScripts, canEditScripts } from '@/lib/permissions'
+import { NotAllowedError } from '@/features/scripts/api'
+import {
+  buildTree,
+  countByFolder,
+  createFolder,
+  deleteFolder,
+  descendantIds,
+  listFolders,
+  moveScriptToFolder,
+  renameFolder,
+  type FolderNode,
+} from '@/features/scripts/folders-api'
+import { FolderTree, type FolderSelection } from '@/features/scripts/components/FolderTree'
+import { MoverParaPasta } from '@/features/scripts/components/MoverParaPasta'
+import { FolderDeleteDialog } from '@/features/scripts/components/FolderDeleteDialog'
+
+type Selecao = FolderSelection
 
 export function ScriptsListPage() {
   const { activeWorkspace } = useActiveWorkspace()
   const workspaceId = activeWorkspace?.id ?? ''
+  const queryClient = useQueryClient()
+  const canEditFolders = canEditScripts(activeWorkspace?.role)
+  const canDeleteFolders = canDeleteScripts(activeWorkspace?.role)
+
+  const [pasta, setPasta] = useState<Selecao>('todos')
+  const [aExcluir, setAExcluir] = useState<FolderNode | null>(null)
+
+  const foldersQuery = useQuery({
+    queryKey: ['script-folders', workspaceId],
+    queryFn: () => listFolders(workspaceId),
+    enabled: Boolean(workspaceId),
+  })
+
+  const countsQuery = useQuery({
+    queryKey: ['script-folder-counts', workspaceId],
+    queryFn: () => countByFolder(workspaceId),
+    enabled: Boolean(workspaceId),
+  })
+
+  const tree = useMemo(
+    () => buildTree(foldersQuery.data ?? [], countsQuery.data ?? {}),
+    [foldersQuery.data, countsQuery.data],
+  )
+
+  /*
+   * Escolher uma pasta traz também o que está nas subpastas.
+   *
+   * Ver uma pasta "vazia" com 12 roteiros guardados um nível abaixo seria
+   * confuso — no explorador de arquivos a pasta pai também não esconde o que
+   * está dentro quando você procura.
+   */
+  const idsDaPasta = useMemo(() => {
+    if (pasta === 'todos') return 'all' as const
+    if (pasta === 'raiz') return null
+    const achar = (nodes: FolderNode[]): FolderNode | undefined => {
+      for (const n of nodes) {
+        if (n.id === pasta) return n
+        const dentro = achar(n.children)
+        if (dentro) return dentro
+      }
+      return undefined
+    }
+    const node = achar(tree)
+    return node ? descendantIds(node) : []
+  }, [pasta, tree])
+
+  function recarregarPastas() {
+    queryClient.invalidateQueries({ queryKey: ['script-folders', workspaceId] })
+    queryClient.invalidateQueries({ queryKey: ['script-folder-counts', workspaceId] })
+  }
+
+  function reportar(erro: unknown) {
+    toast.error(erro instanceof NotAllowedError ? erro.message : strings.errors.unexpected)
+  }
+
+  const criarPasta = useMutation({
+    mutationFn: (input: { parentId: string | null; name: string }) =>
+      createFolder({ workspaceId, ...input }),
+    onSuccess: recarregarPastas,
+    onError: reportar,
+  })
+
+  const renomearPasta = useMutation({
+    mutationFn: (input: { id: string; name: string }) => renameFolder(input.id, input.name),
+    onSuccess: recarregarPastas,
+    onError: reportar,
+  })
+
+  const excluirPasta = useMutation({
+    mutationFn: (id: string) => deleteFolder(id),
+    onSuccess: () => {
+      recarregarPastas()
+      queryClient.invalidateQueries({ queryKey: ['scripts', 'list'] })
+      setPasta('todos')
+      setAExcluir(null)
+      toast.success('Pasta excluída. Os roteiros voltaram para "Sem pasta".')
+    },
+    onError: (erro) => {
+      setAExcluir(null)
+      reportar(erro)
+    },
+  })
+
+  const moverRoteiro = useMutation({
+    mutationFn: (input: { scriptId: string; folderId: string | null }) =>
+      moveScriptToFolder(input.scriptId, input.folderId),
+    onSuccess: () => {
+      recarregarPastas()
+      queryClient.invalidateQueries({ queryKey: ['scripts', 'list'] })
+      toast.success('Roteiro movido.')
+    },
+    onError: reportar,
+  })
 
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -29,6 +144,7 @@ export function ScriptsListPage() {
     status,
     brandId: 'all',
     platform: 'all',
+    folderIds: idsDaPasta,
     page,
   }
 
@@ -38,11 +154,12 @@ export function ScriptsListPage() {
     enabled: Boolean(workspaceId),
   })
 
-  const hasFilters = debouncedSearch.trim() !== '' || status !== 'all'
+  const hasFilters = debouncedSearch.trim() !== '' || status !== 'all' || pasta !== 'todos'
 
   function resetFilters() {
     setSearch('')
     setStatus('all')
+    setPasta('todos')
     setSearchParams({}, { replace: true })
     setPage(0)
   }
@@ -50,7 +167,24 @@ export function ScriptsListPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / SCRIPTS_PAGE_SIZE)) : 1
 
   return (
-    <div className="flex h-full flex-col bg-[#0B0B10] text-[#EDEDF2]">
+    <div className="flex h-full bg-[#0B0B10] text-[#EDEDF2]">
+      <FolderTree
+        tree={tree}
+        counts={countsQuery.data ?? {}}
+        total={Object.values(countsQuery.data ?? {}).reduce((a, b) => a + b, 0)}
+        selected={pasta}
+        onSelect={(s) => {
+          setPasta(s)
+          setPage(0)
+        }}
+        canEdit={canEditFolders}
+        canDelete={canDeleteFolders}
+        onCreate={(parentId, name) => criarPasta.mutate({ parentId, name })}
+        onRename={(id, name) => renomearPasta.mutate({ id, name })}
+        onDelete={setAExcluir}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col">
       {/* Topbar */}
       <div className="flex h-[52px] shrink-0 items-center gap-[12px] border-b border-[#1E1E28] bg-[#0E0E14] px-4">
         <div className="flex h-8 max-w-[360px] flex-1 items-center gap-2 rounded-lg border border-[#23232F] bg-[#14141C] px-2.5">
@@ -108,16 +242,14 @@ export function ScriptsListPage() {
 
         {/* Tabs Filter */}
         <div className="mb-4 flex items-center gap-4 border-b border-[#1E1E28]">
-          {[
-            { value: 'all', label: 'Todos' },
-            { value: 'idea', label: 'Ideia' },
-            { value: 'script', label: 'Roteiro' },
-            { value: 'approved', label: 'Aprovação' },
-            { value: 'recording', label: 'Gravação' },
-            { value: 'editing', label: 'Edição' },
-            { value: 'published', label: 'Publicado' },
-            { value: 'archived', label: 'Arquivado' },
-          ].map((tab) => {
+          {/*
+            Vem de SCRIPT_STATUSES, a mesma fonte que o editor usa.
+            Estava escrito à mão em inglês — 'idea', 'script', 'approved' —
+            enquanto o enum do banco é 'ideia', 'roteiro', 'aprovado'. Nenhuma
+            aba casava, então TODA aba de status devolvia zero resultados, e
+            'pronto' nem tinha aba.
+          */}
+          {[{ value: 'all', label: 'Todos' }, ...SCRIPT_STATUSES].map((tab) => {
             const isActive = status === tab.value
             return (
               <button
@@ -210,16 +342,19 @@ export function ScriptsListPage() {
                   </div>
                   <div>
                     <span className="inline-flex rounded-[5px] bg-[#1C1C27] px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.05em] text-[#8C8CA0]">
-                      {script.status}
+                      {labelFor(SCRIPT_STATUSES, script.status)}
                     </span>
                   </div>
                   <span className="font-sans text-[12px] text-[#8C8CA0]">
                     {script.platform === 'instagram_reels' ? 'Reels' : script.platform === 'tiktok' ? 'TikTok' : script.platform === 'youtube_shorts' ? 'Shorts' : script.platform}
                   </span>
                   <span className="font-sans text-[12px] text-[#8C8CA0]">{script.duration_seconds}s</span>
-                  <button className="flex h-6 w-6 items-center justify-center rounded-md text-[#5E5E75] opacity-0 transition-opacity hover:bg-[#23232F] hover:text-[#EDEDF2] group-hover:opacity-100">
-                    <MoreVertical className="h-3.5 w-3.5" />
-                  </button>
+                  <MoverParaPasta
+                    tree={tree}
+                    atual={script.folder_id ?? null}
+                    disabled={!canEditFolders || moverRoteiro.isPending}
+                    onMover={(folderId) => moverRoteiro.mutate({ scriptId: script.id, folderId })}
+                  />
                 </div>
               ))}
             </div>
@@ -253,6 +388,14 @@ export function ScriptsListPage() {
           </div>
         )}
       </div>
+      </div>
+
+      <FolderDeleteDialog
+        folder={aExcluir}
+        isDeleting={excluirPasta.isPending}
+        onCancel={() => setAExcluir(null)}
+        onConfirm={() => aExcluir && excluirPasta.mutate(aExcluir.id)}
+      />
     </div>
   )
 }

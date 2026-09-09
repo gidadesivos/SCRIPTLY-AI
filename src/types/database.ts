@@ -211,6 +211,39 @@ export type Database = {
           },
         ]
       }
+      script_folders: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          parent_id: string | null
+          position: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          parent_id?: string | null
+          position?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          parent_id?: string | null
+          position?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       campaign_links: {
         Row: {
           created_at: string
@@ -759,6 +792,7 @@ export type Database = {
           desire: string | null
           duration_seconds: number
           framework: string | null
+          folder_id: string | null
           funnel_stage: Database["public"]["Enums"]["funnel_stage"] | null
           hook_category: string | null
           hook_score: number | null
@@ -791,6 +825,7 @@ export type Database = {
           desire?: string | null
           duration_seconds?: number
           framework?: string | null
+          folder_id?: string | null
           funnel_stage?: Database["public"]["Enums"]["funnel_stage"] | null
           hook_category?: string | null
           hook_score?: number | null
@@ -823,6 +858,7 @@ export type Database = {
           desire?: string | null
           duration_seconds?: number
           framework?: string | null
+          folder_id?: string | null
           funnel_stage?: Database["public"]["Enums"]["funnel_stage"] | null
           hook_category?: string | null
           hook_score?: number | null

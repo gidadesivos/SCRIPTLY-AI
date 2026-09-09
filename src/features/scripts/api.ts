@@ -259,6 +259,11 @@ export interface ScriptFilters {
   status?: string | 'all'
   brandId?: string | 'all'
   platform?: string | 'all'
+  /**
+   * Pasta a exibir. 'all' ignora pastas; null é a raiz (fora de qualquer
+   * pasta); uma lista de ids mostra a pasta e tudo que está dentro dela.
+   */
+  folderIds?: string[] | null | 'all'
   page?: number
   pageSize?: number
 }
@@ -279,6 +284,7 @@ export async function listScripts({
   status,
   brandId,
   platform,
+  folderIds = 'all',
   page = 0,
   pageSize = SCRIPTS_PAGE_SIZE,
 }: ScriptFilters): Promise<ScriptsPage> {
@@ -292,6 +298,10 @@ export async function listScripts({
   if (status && status !== 'all') query = query.eq('status', status as Script['status'])
   if (brandId && brandId !== 'all') query = query.eq('brand_id', brandId)
   if (platform && platform !== 'all') query = query.eq('platform', platform as Platform)
+
+  // Pasta escolhida: null é a raiz, lista é a pasta com as subpastas dentro.
+  if (folderIds === null) query = query.is('folder_id', null)
+  else if (Array.isArray(folderIds) && folderIds.length > 0) query = query.in('folder_id', folderIds)
   if (search?.trim()) query = query.ilike('title', `%${search.trim()}%`)
 
   const { data, error, count } = await query
