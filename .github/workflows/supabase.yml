@@ -12,6 +12,10 @@ name: Supabase
 on:
   workflow_dispatch:
     inputs:
+      project_ref:
+        description: 'Projeto de destino (deixe em branco para o atual)'
+        type: string
+        default: ''
       publicar_funcoes:
         description: 'Publicar as Edge Functions (ai-generate e link-preview)'
         type: boolean
@@ -30,7 +34,10 @@ on:
           - aplicar
 
 env:
-  PROJECT_REF: hsncbjxsbbtcpdmvbptc
+  # Projeto atual. A entrada project_ref sobrepõe, para apontar a execução a
+  # outro projeto sem editar este arquivo — é o que permite migrar de conta
+  # sem commit.
+  PROJECT_REF: ${{ inputs.project_ref != '' && inputs.project_ref || 'hsncbjxsbbtcpdmvbptc' }}
 
 jobs:
   publicar:
