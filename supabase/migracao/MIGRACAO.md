@@ -57,11 +57,21 @@ Antes disso, atualize os dois secrets em **Settings → Secrets and variables �
 Actions** para os valores do projeto novo:
 `SUPABASE_ACCESS_TOKEN` e `SUPABASE_DB_PASSWORD`.
 
-### 3. Logar uma vez
-Abra o app apontando para o projeto novo e entre com o Google.
+### 3. Criar sua conta no projeto novo
+Abra o app apontando para o projeto novo e **crie a conta** com e-mail e senha
+(aba de cadastro). O app não tem login com Google — é e-mail e senha.
+
+Se o projeto exigir confirmação de e-mail, ou você confirma pelo link, ou
+desliga a exigência em **Authentication → Providers → Email →
+"Confirm email"**. Sem isso o login devolve "Confirme seu e-mail antes de
+entrar".
 
 > **NÃO crie workspace nenhum.** Ele vem na importação. Se criar, você fica
 > com dois e o app abre no vazio.
+>
+> Logo depois de criar a conta o app mostra a tela de onboarding pedindo um
+> workspace. Isso é o esperado enquanto os dados não foram importados — não é
+> erro. Feche e siga para o passo 4.
 
 Depois: painel → **Authentication → Users** → copie o **UUID** da sua linha.
 
@@ -81,11 +91,12 @@ Painel do projeto novo → **Edge Functions → Secrets**:
 `GEMINI_API_KEY` e, se usar, `OPENROUTER_API_KEY`, `GROQ_API_KEY`,
 `GEMINI_VIDEO_MODEL`.
 
-### 7. Login do Google
-Painel → **Authentication → Providers → Google**: mesmo Client ID e Secret do
-projeto antigo. E no **Google Cloud Console**, adicione a nova URL de callback
-(`https://<novo-ref>.supabase.co/auth/v1/callback`) às URIs autorizadas — sem
-isso o login falha com `redirect_uri_mismatch`.
+### 7. Autenticação por e-mail
+Painel → **Authentication → Providers → Email**: confirme que está habilitado.
+Se "Confirm email" estiver ligado, ou você confirma pelo link que chega, ou
+desliga a exigência.
+
+Não há nada de Google a configurar: o app usa e-mail e senha.
 
 ### 8. Apontar o app
 Na **Vercel** → Settings → Environment Variables:
