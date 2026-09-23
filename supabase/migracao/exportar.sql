@@ -20,6 +20,10 @@
 --   ai_generations— telemetria de uso; é o que mais pesa e não serve de nada
 --                   no destino. Se quiser o histórico, exporte à parte.
 --
+-- DIFERENÇA CONHECIDA: o updated_at das pastas fica com a data da importação.
+-- O trigger que valida a árvore reescreve esse campo em toda escrita, então
+-- preservá-lo é impossível sem desligar o trigger. Não aparece na interface.
+--
 -- IDs PRESERVADOS: todo id de workspace, marca, roteiro e pasta continua o
 -- mesmo. Só o SEU id de usuário muda, porque o login novo gera outro — e é
 -- por isso que o script começa pedindo ele.
@@ -30,19 +34,26 @@ with
 -- Cada linha vira um comando. 'ordem' garante que o pai entre antes do filho.
 comandos as (
 
-  select 0 as ordem, 0 as n, $cab$-- ====================================================================
--- IMPORTAÇÃO — cole tudo isto no SQL Editor do projeto NOVO.
---
--- ANTES DE RODAR, faça as duas coisas abaixo:
---   1. Entre no app do projeto novo e faça login com o Google UMA vez.
---      Isso cria seu usuário. NÃO crie workspace nenhum — ele vem daqui.
---   2. No painel: Authentication -> Users -> copie o UUID da sua linha
---      e cole no lugar de COLE_AQUI_SEU_ID_DE_USUARIO, logo abaixo.
--- ====================================================================
-
-select set_config('mig.usuario', 'COLE_AQUI_SEU_ID_DE_USUARIO', false);
-
-begin;$cab$ as linha
+  -- O cabeçalho sai como VÁRIAS linhas curtas, e não um bloco só.
+  --
+  -- Citação por cifrão seria mais legível aqui, mas o SQL Editor do
+  -- Supabase não o reconhece: ele corta o script em statements no primeiro
+  -- ';' que encontra, e havia ';' dentro do bloco. O resultado era o script
+  -- partido no meio e um erro de sintaxe dezenas de linhas adiante, longe da
+  -- causa. Aspas simples com aspas dobradas por dentro ele entende.
+  select 0 as ordem, 0 as n, '-- ===================================================================' as linha
+  union all select 0, 1, '-- IMPORTAÇÃO — cole tudo isto no SQL Editor do projeto NOVO.'
+  union all select 0, 2, '--'
+  union all select 0, 3, '-- ANTES DE RODAR:'
+  union all select 0, 4, '--   1. Entre no app do projeto novo e faça login com o Google UMA vez.'
+  union all select 0, 5, '--      Isso cria seu usuário. NÃO crie workspace nenhum.'
+  union all select 0, 6, '--   2. Painel: Authentication -> Users -> copie o UUID da sua linha e'
+  union all select 0, 7, '--      cole no lugar de COLE_AQUI_SEU_ID_DE_USUARIO, logo abaixo.'
+  union all select 0, 8, '-- ==================================================================='
+  union all select 0, 9, ''
+  union all select 0, 10, 'select set_config(''mig.usuario'', ''COLE_AQUI_SEU_ID_DE_USUARIO'', false);'
+  union all select 0, 11, ''
+  union all select 0, 12, 'begin;'
 
   -- ---------------------------------------------------------- workspaces
   union all select 1, row_number() over (order by created_at),
@@ -127,18 +138,18 @@ begin;$cab$ as linha
     format('update public.campaign_nodes set parent_id = %L where id = %L;', t.parent_id, t.id)
   from public.campaign_nodes t where t.parent_id is not null
 
-  union all select 90, 0, $fim$
-commit;
-
--- Confira: os números abaixo têm de bater com os do projeto antigo.
-select 'marcas' as tabela, count(*) from public.brands
-union all select 'produtos', count(*) from public.products
-union all select 'pastas', count(*) from public.script_folders
-union all select 'roteiros', count(*) from public.scripts
-union all select 'cenas', count(*) from public.script_scenes
-union all select 'planos', count(*) from public.campaign_plans
-union all select 'nos', count(*) from public.campaign_nodes
-order by 1;$fim$
+  union all select 90, 0, ''
+  union all select 90, 1, 'commit;'
+  union all select 91, 0, ''
+  union all select 91, 1, '-- Confira: os números abaixo têm de bater com os do projeto antigo.'
+  union all select 91, 2, 'select ''marcas'' as tabela, count(*) from public.brands'
+  union all select 91, 3, ' union all select ''produtos'', count(*) from public.products'
+  union all select 91, 4, ' union all select ''pastas'', count(*) from public.script_folders'
+  union all select 91, 5, ' union all select ''roteiros'', count(*) from public.scripts'
+  union all select 91, 6, ' union all select ''cenas'', count(*) from public.script_scenes'
+  union all select 91, 7, ' union all select ''planos'', count(*) from public.campaign_plans'
+  union all select 91, 8, ' union all select ''nos'', count(*) from public.campaign_nodes'
+  union all select 91, 9, ' order by 1;'
 
 )
 

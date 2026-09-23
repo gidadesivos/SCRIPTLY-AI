@@ -26,6 +26,13 @@ Nada aqui precisa de terminal.
 | Arquivos do Storage | precisam ser rebaixados e resubidos à mão (poucos: logos de marca) |
 | Membros convidados | o usuário deles não existe no projeto novo |
 
+### Uma diferença conhecida, e inofensiva
+
+O `updated_at` das **pastas** fica com a data da importação, não a original. O
+trigger que valida a árvore reescreve esse campo em toda escrita, então não há
+como preservá-lo — e ele não aparece em lugar nenhum da interface. Todo o resto
+atravessa idêntico byte a byte, conferido por hash.
+
 **O único valor remapeado é o seu id de usuário.** Todos os ids de workspace,
 marca, roteiro e pasta são preservados, então nenhum vínculo interno se perde.
 
