@@ -31,7 +31,12 @@ function AppShellInner() {
 
   return (
     <div className="flex min-h-svh bg-[#0B0B10]">
-      <aside className="hidden shrink-0 md:block">
+      {/*
+        sticky + h-svh: o rail acompanha a janela e nunca sai de vista. Sem
+        isto, numa tela baixa o seletor de modelo e o avatar ficavam abaixo da
+        dobra e exigiam rolar a página inteira para alcançá-los.
+      */}
+      <aside className="sticky top-0 hidden h-svh shrink-0 md:block">
         <AppRail />
       </aside>
 

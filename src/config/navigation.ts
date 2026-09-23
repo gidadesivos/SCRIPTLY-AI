@@ -39,7 +39,9 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/create-beta',
     icon: Zap,
     badge: 'BETA',
-    fullLabel: 'Criação (Beta)',
+    // Sem "(Beta)" no nome: o selo ao lado já diz isso, e repetir só rouba
+    // espaço do rótulo no rail expandido.
+    fullLabel: 'Criação',
   },
   { label: 'roteiros', href: '/scripts', icon: FileText },
   { label: 'marcas', href: '/brands', icon: Brain },
