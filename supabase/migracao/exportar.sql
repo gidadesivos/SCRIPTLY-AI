@@ -31,6 +31,19 @@
 
 with
 
+/*
+ * >>> ÚNICA COISA A EDITAR NESTE ARQUIVO <<<
+ *
+ * Cole entre as aspas o SEU UUID no projeto NOVO
+ * (painel -> Authentication -> Users -> coluna UID).
+ *
+ * Ele entra já preenchido no script gerado, para você não ter que caçar um
+ * marcador no meio de centenas de linhas — que é onde se erra.
+ */
+destino as (
+  select 'COLE_AQUI_SEU_ID_DE_USUARIO'::text as usuario
+),
+
 -- Cada linha vira um comando. 'ordem' garante que o pai entre antes do filho.
 comandos as (
 
@@ -47,11 +60,12 @@ comandos as (
   union all select 0, 3, '-- ANTES DE RODAR:'
   union all select 0, 4, '--   1. Crie sua conta no app do projeto novo (e-mail e senha).'
   union all select 0, 5, '--      NÃO crie workspace nenhum — ele vem nesta importação.'
-  union all select 0, 6, '--   2. Painel: Authentication -> Users -> copie o UUID da sua linha e'
-  union all select 0, 7, '--      cole no lugar de COLE_AQUI_SEU_ID_DE_USUARIO, logo abaixo.'
+  union all select 0, 6, '--   2. Nada a editar aqui: o seu UUID já veio preenchido abaixo.'
+  union all select 0, 7, '--      Basta colar tudo e rodar.'
   union all select 0, 8, '-- ==================================================================='
   union all select 0, 9, ''
-  union all select 0, 10, 'select set_config(''mig.usuario'', ''COLE_AQUI_SEU_ID_DE_USUARIO'', false);'
+  union all select 0, 10,
+    format('select set_config(''mig.usuario'', %L, false);', (select usuario from destino))
   union all select 0, 11, ''
   union all select 0, 12, 'begin;'
 

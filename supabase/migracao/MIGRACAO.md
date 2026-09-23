@@ -76,13 +76,16 @@ entrar".
 Depois: painel → **Authentication → Users** → copie o **UUID** da sua linha.
 
 ### 4. Exportar os dados
-No SQL Editor do projeto **ANTIGO**, cole e rode `supabase/migracao/exportar.sql`.
+Abra `supabase/migracao/exportar.sql` e cole o UUID do passo 3 na **única linha
+marcada para editar**, lá no topo. Depois cole o arquivo inteiro no SQL Editor
+do projeto **ANTIGO** e rode.
 
 Ele devolve **uma única célula de texto**. Clique nela e copie tudo.
 
 ### 5. Importar
-No SQL Editor do projeto **NOVO**, cole o que copiou. Troque
-`COLE_AQUI_SEU_ID_DE_USUARIO` pelo UUID do passo 3. Rode.
+No SQL Editor do projeto **NOVO**, cole o que copiou e rode. **Nada a editar** —
+o seu UUID já saiu preenchido, porque você o informou no topo do `exportar.sql`
+antes de gerar.
 
 No fim ele imprime as contagens — confira com as do projeto antigo.
 
