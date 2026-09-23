@@ -2,6 +2,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth'
 import { Diagnostics } from '@/features/settings/components/Diagnostics'
 import { PlanCard } from '@/features/settings/components/PlanCard'
 import { ProvidersCard } from '@/features/settings/components/ProvidersCard'
+import { WorkspacesCard } from '@/features/workspaces/components/WorkspacesCard'
 import { strings } from '@/i18n/pt-BR'
 
 export function SettingsPage() {
@@ -41,6 +42,7 @@ export function SettingsPage() {
 
           {/* Other Settings Components */}
           <div className="settings-cards-wrapper space-y-8 [&_.border-border]:border-[#1E1E28] [&_.bg-card]:bg-[#12121A] [&_.text-card-foreground]:text-[#EDEDF2] [&_.text-muted-foreground]:text-[#8C8CA0]">
+            <WorkspacesCard />
             <PlanCard />
             <ProvidersCard />
             <Diagnostics />

@@ -12,6 +12,7 @@ export const strings = {
     archive: 'Arquivar',
     restore: 'Reativar',
     edit: 'Editar',
+    delete: 'Excluir',
   },
   brands: {
     title: 'Brand Brain',
@@ -262,6 +263,24 @@ export const strings = {
     switchWorkspace: 'Trocar workspace',
     newWorkspace: 'Novo workspace',
     noWorkspaces: 'Nenhum workspace encontrado',
+    manageTitle: 'Workspaces',
+    manageDescription:
+      'Cada workspace tem as próprias marcas, produtos e roteiros, isolados dos demais.',
+    active: 'Ativo',
+    activate: 'Ativar',
+    roleLabel: 'seu papel',
+    renameLabel: 'Renomear workspace',
+    renamed: 'Workspace renomeado.',
+    deleteTitle: 'Excluir workspace',
+    deleteWarning:
+      'Isto apaga o workspace e TUDO que está dentro dele. Não há como desfazer.',
+    countingContents: 'Contando o que será apagado…',
+    plansLabel: 'planos de campanha',
+    deleteLastWarning:
+      'Este é seu único workspace. Depois de apagar, você volta para a tela de criação.',
+    typeNameToConfirm: 'Para confirmar, digite o nome do workspace:',
+    deleting: 'Excluindo…',
+    deleted: 'Workspace excluído.',
   },
   dashboard: {
     title: 'Dashboard',

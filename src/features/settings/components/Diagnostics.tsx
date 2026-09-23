@@ -89,12 +89,30 @@ export function Diagnostics() {
           status: 'ok',
           detail: `Publicada e respondendo (${context.status} para requisição inválida, como esperado).`,
         })
-      } else {
+      } else if (context && context.status === 503) {
+        /*
+         * 503 NÃO é "não publicada" — é publicada e sem chave de IA.
+         *
+         * A function recusa por falta de provedor ANTES de ler o corpo, então
+         * ela nunca chega a devolver o 400 que este diagnóstico espera. Enquanto
+         * os dois casos dividiam a mesma mensagem, o diagnóstico mandava
+         * republicar uma function que já estava publicada — e republicar não
+         * resolve chave faltando.
+         */
         found.push({
           label: 'Edge Function ai-generate',
           status: 'missing',
           detail:
-            'Não respondeu. Publique com: supabase functions deploy ai-generate — e configure o secret GEMINI_API_KEY.',
+            'Publicada, mas sem chave de IA. Configure o secret GEMINI_API_KEY em ' +
+            'Edge Functions › Secrets, no painel do Supabase. Republicar não resolve.',
+        })
+      } else {
+        found.push({
+          label: 'Edge Function ai-generate',
+          status: 'missing',
+          detail: context
+            ? `Respondeu ${context.status}, que não era esperado. Veja os logs em Edge Functions › ai-generate.`
+            : 'Não respondeu — a requisição nem chegou. Publique com: supabase functions deploy ai-generate.',
         })
       }
     } catch (error) {

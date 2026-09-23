@@ -22,3 +22,19 @@ export function canDeleteScripts(role: MemberRole | undefined): boolean {
 export function canEditScripts(role: MemberRole | undefined): boolean {
   return role === 'owner' || role === 'admin' || role === 'editor'
 }
+
+/** Espelha workspaces_update (migration 0001): owner e admin renomeiam. */
+export function canRenameWorkspace(role: MemberRole | undefined): boolean {
+  return role === 'owner' || role === 'admin'
+}
+
+/**
+ * Espelha workspaces_delete (migration 0001): SOMENTE owner.
+ *
+ * É a permissão mais restrita do app, e com razão: apagar um workspace
+ * cascateia para 13 tabelas — marcas, produtos, roteiros, cenas, versões,
+ * planos de campanha. Um admin não deve conseguir evaporar o trabalho de todos.
+ */
+export function canDeleteWorkspace(role: MemberRole | undefined): boolean {
+  return role === 'owner'
+}

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { slugify } from '@/lib/slug'
+import { NotAllowedError } from '@/features/scripts/api'
 import type { Workspace } from './types'
 
 interface MembershipRow {
@@ -44,4 +45,74 @@ export async function createWorkspace(name: string): Promise<string> {
 
   if (error) throw error
   return data
+}
+
+/**
+ * Renomeia. O slug NÃO acompanha o nome de propósito.
+ *
+ * Slug é identificador estável; recalcular a cada renome esbarraria na unique
+ * quando dois workspaces convergissem para o mesmo texto, e quebraria qualquer
+ * referência externa por slug. Nome é rótulo, slug é identidade.
+ */
+export async function renameWorkspace(id: string, name: string): Promise<void> {
+  const limpo = name.trim()
+  if (!limpo) throw new Error('O nome não pode ficar vazio.')
+
+  const { data, error } = await supabase
+    .from('workspaces')
+    .update({ name: limpo })
+    .eq('id', id)
+    .select('id')
+
+  if (error) throw error
+  // Sob RLS, um update barrado volta como SUCESSO com zero linhas. Sem esta
+  // conferência a tela diria "renomeado" e nada teria mudado.
+  if (!data?.length) {
+    throw new NotAllowedError('Só quem é owner ou admin pode renomear este workspace.')
+  }
+}
+
+/** Quanto se perde ao apagar. É isto que o diálogo mostra antes de confirmar. */
+export interface WorkspaceContents {
+  brands: number
+  products: number
+  scripts: number
+  plans: number
+}
+
+export async function countWorkspaceContents(id: string): Promise<WorkspaceContents> {
+  const contar = async (tabela: 'brands' | 'products' | 'scripts' | 'campaign_plans') => {
+    const { count } = await supabase
+      .from(tabela)
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', id)
+    return count ?? 0
+  }
+
+  const [brands, products, scripts, plans] = await Promise.all([
+    contar('brands'),
+    contar('products'),
+    contar('scripts'),
+    contar('campaign_plans'),
+  ])
+
+  return { brands, products, scripts, plans }
+}
+
+/**
+ * Apaga o workspace e, por cascata do banco, TUDO que está dentro dele:
+ * marcas, produtos, roteiros, cenas, versões, variações, planos e ligações.
+ * Treze tabelas. Não há desfazer.
+ */
+export async function deleteWorkspace(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('workspaces')
+    .delete()
+    .eq('id', id)
+    .select('id')
+
+  if (error) throw error
+  if (!data?.length) {
+    throw new NotAllowedError('Só o owner pode apagar este workspace.')
+  }
 }
