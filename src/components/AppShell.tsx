@@ -5,13 +5,13 @@ import { AppSidebar } from '@/components/AppSidebar'
 import { AppRail } from '@/components/AppRail'
 import { ModelSelector } from '@/components/ModelSelector'
 import { RouteFallback } from '@/components/RouteFallback'
+import { Logo } from '@/components/Logo'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ActiveWorkspaceProvider, useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { ActiveBrandProvider } from '@/features/brands/hooks/useActiveBrand'
 import { ActiveModelProvider } from '@/hooks/useActiveModel'
 import { OnboardingPage } from '@/features/workspaces/components/OnboardingPage'
-import { APP_NAME } from '@/config/brand'
 
 function AppShellInner() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -47,7 +47,7 @@ function AppShellInner() {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <span className="text-sm font-semibold text-[#EDEDF2]">{APP_NAME}</span>
+          <Logo size={22} />
           <div className="ml-auto">
             <ModelSelector />
           </div>

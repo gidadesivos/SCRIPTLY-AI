@@ -2,11 +2,11 @@ import { NavLink } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from '@/config/navigation'
-import { APP_NAME } from '@/config/brand'
 import { WorkspaceSwitcher } from '@/features/workspaces/components/WorkspaceSwitcher'
 import { BrandSwitcher } from '@/features/brands/components/BrandSwitcher'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Logo } from '@/components/Logo'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { strings } from '@/i18n/pt-BR'
 
@@ -22,7 +22,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
-      <div className="px-2 text-lg font-semibold tracking-tight">{APP_NAME}</div>
+      <div className="px-2"><Logo size={26} /></div>
 
       <nav className="flex flex-1 flex-col gap-1">
         {NAV_ITEMS.map((item) => (

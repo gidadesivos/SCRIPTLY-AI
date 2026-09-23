@@ -3,6 +3,7 @@ import { LifeBuoy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from '@/config/navigation'
 import { useAuth } from '@/features/auth/hooks/useAuth'
+import { Logo } from '@/components/Logo'
 
 function initialsFrom(name: string | null | undefined, email: string | null | undefined) {
   const source = name || email || '?'
@@ -16,9 +17,9 @@ export function AppRail({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full w-[72px] flex-col items-center gap-[2px] border-r border-border bg-[#0A0A0E] py-3 text-[#EDEDF2] font-sans">
-      <div className="mb-2.5 flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-[#7D5CFF] to-[#5432E0] font-sans text-[13px] font-semibold leading-none text-white">
-        S
-      </div>
+      {/* Era um "S" digitado dentro de um quadrado com gradiente — um
+          desenho à mão fingindo ser a marca. Agora é a marca. */}
+      <Logo iconOnly size={30} className="mb-2.5" />
 
       {NAV_ITEMS.map((item) => (
         <NavLink

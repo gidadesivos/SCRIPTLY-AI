@@ -11,8 +11,8 @@ import { useAuth } from '@/features/auth/hooks/useAuth'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { authErrorMessage } from '@/lib/auth-errors'
 import { signInSchema, signUpSchema, type SignInInput, type SignUpInput } from '@/schemas/auth'
-import { APP_NAME } from '@/config/brand'
 import { strings } from '@/i18n/pt-BR'
+import { Logo } from '@/components/Logo'
 import { cn } from '@/lib/utils'
 
 type Mode = 'signIn' | 'signUp'
@@ -57,7 +57,7 @@ export function LoginPage() {
   return (
     <AuthShell>
       <CardHeader className="items-center text-center">
-        <div className="mb-2 text-lg font-semibold tracking-tight">{APP_NAME}</div>
+        <div className="mb-3 flex justify-center"><Logo size={38} /></div>
         <CardTitle>
           {mode === 'signIn' ? strings.auth.signInTitle : strings.auth.signUpTitle}
         </CardTitle>
