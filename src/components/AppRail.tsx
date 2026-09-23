@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from '@/config/navigation'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { Logo } from '@/components/Logo'
+import { WorkspaceSwitcher } from '@/features/workspaces/components/WorkspaceSwitcher'
+import { BrandSwitcher } from '@/features/brands/components/BrandSwitcher'
 
 function initialsFrom(name: string | null | undefined, email: string | null | undefined) {
   const source = name || email || '?'
@@ -20,6 +22,18 @@ export function AppRail({ onNavigate }: { onNavigate?: () => void }) {
       {/* Era um "S" digitado dentro de um quadrado com gradiente — um
           desenho à mão fingindo ser a marca. Agora é a marca. */}
       <Logo iconOnly size={30} className="mb-2.5" />
+
+      {/*
+        Trocar de workspace e de marca só existia no AppSidebar — que só é
+        renderizado na gaveta do celular. No desktop, onde aparece este rail,
+        não havia como trocar nenhum dos dois: o recurso existia e era
+        inalcançável. Aqui ficam as mesmas listas, em gatilho compacto.
+      */}
+      <div className="mb-1.5 flex flex-col items-center gap-1.5">
+        <WorkspaceSwitcher compact />
+        <BrandSwitcher compact />
+      </div>
+      <div className="mb-2 h-px w-8 bg-[#1E1E28]" />
 
       {NAV_ITEMS.map((item) => (
         <NavLink
