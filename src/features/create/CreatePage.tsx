@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ModelSelector } from '@/components/ModelSelector'
 import { AiLoading } from '@/features/create/components/AiLoading'
 import { BriefStep, type BriefState } from '@/features/create/components/BriefStep'
 import { AngleStep } from '@/features/create/components/AngleStep'
@@ -362,7 +361,6 @@ export function CreatePage() {
           })}
         </div>
         <div className="ml-auto flex items-center gap-2.5">
-          <ModelSelector />
           {restoredAt && (
             <span className="font-mono text-[11px] font-medium text-[#5E5E75]">
               rascunho salvo {restoredAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}

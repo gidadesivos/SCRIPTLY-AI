@@ -14,7 +14,15 @@ const PROVIDER_LABELS: Record<string, string> = {
   groq: 'Groq',
 }
 
-export function ModelSelector() {
+/**
+ * compact: versão para o rail de 72px do desktop.
+ *
+ * É variante do MESMO componente, e não um seletor paralelo: a lista, o estado
+ * do provedor e o ponto de status são os mesmos. O rail mostra o nome do
+ * modelo truncado pelo CSS — o nome inteiro fica no title, porque saber QUAL
+ * modelo está ativo é o motivo de este widget existir.
+ */
+export function ModelSelector({ compact = false }: { compact?: boolean } = {}) {
   const { activeModel, setActiveModel, availableModels, isLoading } = useActiveModel()
   const { activeWorkspace } = useActiveWorkspace()
   const workspaceId = activeWorkspace?.id ?? ''
@@ -77,7 +85,11 @@ export function ModelSelector() {
   }
 
   if (isLoading) {
-    return (
+    return compact ? (
+      <span className="flex w-[60px] items-center justify-center py-2 text-[#5E5E75]">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      </span>
+    ) : (
       <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#23232F] bg-[#14141C] px-2.5 py-1.5 font-mono text-[11px] font-medium text-[#8C8CA0]">
         <Loader2 className="h-3 w-3 animate-spin" />
       </span>
@@ -87,21 +99,47 @@ export function ModelSelector() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          id="model-selector"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#23232F] bg-[#14141C] px-2.5 py-1.5 font-mono text-[11px] font-medium text-[#8C8CA0] transition-colors hover:bg-[#1E1E28] hover:text-[#EDEDF2] outline-none"
-        >
-          <span
-            className={cn('h-2 w-2 shrink-0 rounded-full', dot.color)}
-            title={dot.label}
-            aria-label={dot.label}
-          />
-          <span className="truncate max-w-[120px]">{shortLabel}</span>
-          <ChevronDown className="h-3 w-3 opacity-50" />
-        </button>
+        {compact ? (
+          <button
+            id="model-selector"
+            title={`${displayLabel} — ${dot.label}`}
+            aria-label={`Modelo de IA: ${displayLabel}. ${dot.label}`}
+            className="flex w-[60px] flex-col items-center gap-1 rounded-[10px] pb-1.5 pt-2 text-[#6E6E85] outline-none transition-colors hover:bg-[#6D4AFF]/10 hover:text-[#B9A6FF] focus-visible:ring-2 focus-visible:ring-[#6D4AFF]"
+          >
+            <span className="relative">
+              <Sparkles className="h-[17px] w-[17px]" aria-hidden />
+              <span
+                className={cn(
+                  'absolute -right-1 -top-0.5 h-[6px] w-[6px] rounded-full ring-2 ring-[#0A0A0E]',
+                  dot.color,
+                )}
+                aria-hidden
+              />
+            </span>
+            <span className="w-full truncate px-0.5 text-center font-mono text-[9px] font-medium leading-none tracking-[0.02em]">
+              {displayLabel}
+            </span>
+          </button>
+        ) : (
+          <button
+            id="model-selector"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#23232F] bg-[#14141C] px-2.5 py-1.5 font-mono text-[11px] font-medium text-[#8C8CA0] transition-colors hover:bg-[#1E1E28] hover:text-[#EDEDF2] outline-none"
+          >
+            <span
+              className={cn('h-2 w-2 shrink-0 rounded-full', dot.color)}
+              title={dot.label}
+              aria-label={dot.label}
+            />
+            <span className="truncate max-w-[120px]">{shortLabel}</span>
+            <ChevronDown className="h-3 w-3 opacity-50" />
+          </button>
+        )}
       </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-64 border-[#1E1E28] bg-[#0E0E14] p-0 text-[#EDEDF2] rounded-xl shadow-xl shadow-black/50">
+      <PopoverContent
+        align={compact ? 'start' : 'end'}
+        side={compact ? 'right' : 'bottom'}
+        className="w-64 border-[#1E1E28] bg-[#0E0E14] p-0 text-[#EDEDF2] rounded-xl shadow-xl shadow-black/50">
         <div className="p-1">
           <button
             className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[12px] font-sans transition-colors hover:bg-[#14141C] ${

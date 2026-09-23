@@ -6,7 +6,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/useActiveWorkspace'
 import { getDashboardData } from '@/features/dashboard/api'
 import { ContextSwitcher } from '@/components/ContextSwitcher'
-import { ModelSelector } from '@/components/ModelSelector'
 
 export function DashboardPage() {
   const { activeWorkspace } = useActiveWorkspace()
@@ -44,7 +43,6 @@ export function DashboardPage() {
           </span>
         </div>
         <div className="ml-auto flex items-center gap-2.5">
-          <ModelSelector />
           <Button
             className="h-8 gap-2 bg-[#6D4AFF] px-3 font-sans text-[13px] font-medium text-white hover:bg-[#6D4AFF]/90"
             asChild

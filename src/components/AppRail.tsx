@@ -6,6 +6,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth'
 import { Logo } from '@/components/Logo'
 import { WorkspaceSwitcher } from '@/features/workspaces/components/WorkspaceSwitcher'
 import { BrandSwitcher } from '@/features/brands/components/BrandSwitcher'
+import { ModelSelector } from '@/components/ModelSelector'
 
 function initialsFrom(name: string | null | undefined, email: string | null | undefined) {
   const source = name || email || '?'
@@ -77,7 +78,14 @@ export function AppRail({ onNavigate }: { onNavigate?: () => void }) {
         </NavLink>
       ))}
 
+      {/*
+        O seletor de modelo só existia no header do celular, no /create e no
+        dashboard — em nenhuma outra página, e em nenhum lugar do desktop.
+        Aqui ele passa a existir em toda tela, de uma vez.
+      */}
       <div className="mt-auto flex flex-col items-center gap-2.5">
+        <div className="h-px w-8 bg-[#1E1E28]" />
+        <ModelSelector compact />
         <span className="flex h-7 w-7 items-center justify-center rounded-lg text-[#6E6E85] hover:text-[#B9A6FF] cursor-pointer transition-colors">
           <LifeBuoy className="h-4 w-4" />
         </span>
